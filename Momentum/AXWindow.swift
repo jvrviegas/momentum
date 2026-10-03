@@ -1,10 +1,6 @@
 import AppKit
 import ApplicationServices
 
-// Private but stable HIServices function that maps an AX window element to its CGWindowID.
-@_silgen_name("_AXUIElementGetWindow") @discardableResult
-private func _AXUIElementGetWindow(_ element: AXUIElement, _ windowID: inout CGWindowID) -> AXError
-
 /// Thin wrapper over an Accessibility window element. Frames use top-left origin global coordinates.
 struct AXWindow {
     let element: AXUIElement
@@ -26,8 +22,10 @@ struct AXWindow {
         return AXWindow(element: element, pid: pid)
     }
 
-    /// Normal, visible document-style windows; excludes dialogs, sheets, minimized and fullscreen windows.
+    /// Normal, visible document-style windows; excludes dialogs, sheets, minimized and fullscreen windows,
+    /// and windows of hidden apps (AX keeps listing those).
     var isStandard: Bool {
+        guard NSRunningApplication(processIdentifier: pid)?.isHidden != true else { return false }
         let role: String? = element.value(of: kAXRoleAttribute)
         let subrole: String? = element.value(of: kAXSubroleAttribute)
         let minimized: Bool? = element.value(of: kAXMinimizedAttribute)
@@ -60,6 +58,7 @@ struct AXWindow {
 
     /// A point near the top of the window that can be grabbed to drag it. Each candidate is hit-tested
     /// so we don't press a tab, button or text field (e.g. browser tab strips start right after the traffic lights).
+    /// Nil when no candidate is safe to press.
     var titleBarGrabPoint: CGPoint? {
         guard let frame else { return nil }
         var startX = frame.minX + 80
@@ -84,7 +83,7 @@ struct AXWindow {
                 }
             }
         }
-        return CGPoint(x: startX, y: frame.minY + 12)
+        return nil
     }
 }
 

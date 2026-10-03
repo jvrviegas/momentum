@@ -39,7 +39,7 @@ import Observation
             config = decoded
             isReloading = false
         } catch {
-            lastError = "Couldn't read config.json: \(error.localizedDescription)"
+            lastError = "Couldn't read \(Self.fileURL.lastPathComponent): \(error.localizedDescription)"
         }
     }
 
@@ -51,20 +51,28 @@ import Observation
             try encoder.encode(config).write(to: Self.fileURL, options: .atomic)
             lastError = nil
         } catch {
-            lastError = "Couldn't save config.json: \(error.localizedDescription)"
+            lastError = "Couldn't save \(Self.fileURL.lastPathComponent): \(error.localizedDescription)"
         }
     }
 
     private func startWatching() {
         watcher?.cancel()
-        let descriptor = open(Self.fileURL.path, O_EVTONLY)
+        // While the file is missing (deleted, or an editor is slow to replace it), watch its folder for it to come back.
+        let isFilePresent = FileManager.default.fileExists(atPath: Self.fileURL.path)
+        let watchedURL = isFilePresent ? Self.fileURL : Self.fileURL.deletingLastPathComponent()
+        let descriptor = open(watchedURL.path, O_EVTONLY)
         guard descriptor >= 0 else { return }
 
         let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: descriptor, eventMask: [.write, .delete, .rename], queue: .main)
         source.setEventHandler { [weak self] in
             let event = source.data
             MainActor.assumeIsolated {
-                self?.fileChanged(event)
+                if isFilePresent {
+                    self?.fileChanged(event)
+                } else if FileManager.default.fileExists(atPath: Self.fileURL.path) {
+                    self?.reload()
+                    self?.startWatching()
+                }
             }
         }
         source.setCancelHandler { close(descriptor) }

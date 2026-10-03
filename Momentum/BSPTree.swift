@@ -62,6 +62,22 @@ struct BSPTree: Equatable {
         self.root = Self.mapLeaves(root) { $0 == a ? b : ($0 == b ? a : $0) }
     }
 
+    /// Matches the tree to `current`: removes windows that are gone, then inserts new ones in order by splitting `focused`.
+    mutating func sync(with current: [WindowID], focused: WindowID?, bounds: CGRect) {
+        let keep = Set(current)
+        for id in windows where !keep.contains(id) {
+            remove(id)
+        }
+        for id in current where !contains(id) {
+            insert(id, at: focused, bounds: bounds)
+        }
+    }
+
+    /// The window whose tile contains `point`, ignoring `excluded`.
+    func window(at point: CGPoint, excluding excluded: WindowID, in bounds: CGRect, gap: CGFloat) -> WindowID? {
+        layout(in: bounds, gap: gap).first { $0.key != excluded && $0.value.contains(point) }?.key
+    }
+
     /// Computes a frame for every window. `gap` is the spacing between sibling windows.
     func layout(in rect: CGRect, gap: CGFloat) -> [WindowID: CGRect] {
         var result: [WindowID: CGRect] = [:]
@@ -152,15 +168,16 @@ struct BSPTree: Equatable {
         case .split(let axis, let a, let b):
             let first: CGRect
             let second: CGRect
+            // Split on a whole point so the gap stays exact; the second child takes the remainder.
             switch axis {
             case .horizontal:
-                let width = (rect.width - gap) / 2
+                let width = ((rect.width - gap) / 2).rounded(.down)
                 first = CGRect(x: rect.minX, y: rect.minY, width: width, height: rect.height)
-                second = CGRect(x: rect.minX + width + gap, y: rect.minY, width: width, height: rect.height)
+                second = CGRect(x: rect.minX + width + gap, y: rect.minY, width: rect.width - width - gap, height: rect.height)
             case .vertical:
-                let height = (rect.height - gap) / 2
+                let height = ((rect.height - gap) / 2).rounded(.down)
                 first = CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: height)
-                second = CGRect(x: rect.minX, y: rect.minY + height + gap, width: rect.width, height: height)
+                second = CGRect(x: rect.minX, y: rect.minY + height + gap, width: rect.width, height: rect.height - height - gap)
             }
             layout(a, in: first, gap: gap, into: &result)
             layout(b, in: second, gap: gap, into: &result)

@@ -23,9 +23,13 @@ struct SettingsView: View {
                 }
             }
 
-            Section("Layout") {
-                TextField("Gap between windows", value: $configStore.config.gap, format: .number)
-                TextField("Screen padding", value: $configStore.config.outerPadding, format: .number)
+            Section {
+                TextField("Gap between windows", value: spacing(\.gap), format: .number)
+                TextField("Screen padding", value: spacing(\.outerPadding), format: .number)
+            } header: {
+                Text("Layout")
+            } footer: {
+                Text("Only the main display is tiled. Turn off \"Drag windows to screen edges to tile\" in System Settings › Desktop & Dock so macOS's own tiling doesn't compete with Momentum.")
             }
 
             Section("Floating apps") {
@@ -64,17 +68,28 @@ struct SettingsView: View {
             Section {
                 ForEach(Action.allCases, id: \.self) { action in
                     LabeledContent(action.title) {
-                        HotKeyRecorder(combo: Binding(
-                            get: { configStore.config.bindings[action] ?? nil },
-                            // Store nil explicitly so a cleared hotkey isn't replaced by its default on reload.
-                            set: { configStore.config.bindings[action] = .some($0) }
-                        ))
+                        HStack {
+                            if manager.failedHotKeys.contains(action) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundStyle(.yellow)
+                                    .help("This shortcut isn't active: an action above already uses it, or macOS refused it.")
+                            }
+                            HotKeyRecorder(combo: Binding(
+                                get: { configStore.config.bindings[action] ?? nil },
+                                // Store nil explicitly so a cleared hotkey isn't replaced by its default on reload.
+                                set: { configStore.config.bindings[action] = .some($0) }
+                            ))
+                        }
                     }
                 }
             } header: {
                 Text("Hotkeys")
             } footer: {
-                Text("Sending windows to a Desktop requires the \"Switch to Desktop N\" shortcuts (⌃1–⌃9) to be enabled in System Settings › Keyboard › Keyboard Shortcuts › Mission Control.")
+                Text("""
+                    Switching and sending windows to a Desktop use the "Switch to Desktop N" shortcuts, which must be turned on in System Settings › Keyboard › Keyboard Shortcuts › Mission Control.
+
+                    Shortcuts follow key positions, so they work on any keyboard layout; the config file names keys by their US-layout position. On some layouts ⌥ combinations type characters (on German, ⌥L types @), so rebind any you need for typing.
+                    """)
             }
 
             Section {
@@ -92,6 +107,14 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .frame(minWidth: 520, minHeight: 600)
+    }
+
+    /// Keeps typed spacing within the range the config file accepts.
+    private func spacing(_ keyPath: WritableKeyPath<Config, Double>) -> Binding<Double> {
+        Binding(
+            get: { configStore.config[keyPath: keyPath] },
+            set: { configStore.config[keyPath: keyPath] = min(max($0, Config.spacingRange.lowerBound), Config.spacingRange.upperBound) }
+        )
     }
 }
 

@@ -106,13 +106,35 @@ struct KeyCombo: Hashable, Codable, CustomStringConvertible {
         (Modifier.allCases.filter(modifiers.contains).map(\.rawValue) + [key]).joined(separator: "+")
     }
 
-    /// Symbolic form for display, e.g. `⌥⇧H`.
+    /// Symbolic form for display, e.g. `⌥⇧H`. `key` names a physical key by its US-layout position, so
+    /// character keys show what they type on the current layout instead (e.g. `Z` on German for `y`).
     var displayString: String {
         let symbols: [Modifier: String] = [.ctrl: "⌃", .alt: "⌥", .shift: "⇧", .cmd: "⌘"]
-        return Modifier.allCases.filter(modifiers.contains).compactMap { symbols[$0] }.joined() + key.uppercased()
+        let label = keyCode.flatMap(Self.typedCharacter) ?? key
+        return Modifier.allCases.filter(modifiers.contains).compactMap { symbols[$0] }.joined() + label.uppercased()
     }
 
     var keyCode: UInt32? { Self.keyCodes[key] }
+
+    /// What `keyCode` types on the current keyboard layout without modifiers; nil for keys that don't
+    /// type a visible character (space, return, arrows, function keys…), which keep their names.
+    private static func typedCharacter(forKeyCode keyCode: UInt32) -> String? {
+        guard let source = TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue(),
+              let layout = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData) else { return nil }
+        let layoutData = Unmanaged<CFData>.fromOpaque(layout).takeUnretainedValue() as Data
+        var deadKeyState: UInt32 = 0
+        var characters = [UniChar](repeating: 0, count: 4)
+        var length = 0
+        let status = layoutData.withUnsafeBytes { bytes in
+            UCKeyTranslate(bytes.bindMemory(to: UCKeyboardLayout.self).baseAddress, UInt16(keyCode), UInt16(kUCKeyActionDisplay),
+                           0, UInt32(LMGetKbdType()), OptionBits(kUCKeyTranslateNoDeadKeysMask),
+                           &deadKeyState, characters.count, &length, &characters)
+        }
+        guard status == noErr, length > 0 else { return nil }
+        let typed = String(utf16CodeUnits: characters, count: length)
+        let invisible = CharacterSet.controlCharacters.union(.whitespacesAndNewlines)
+        return typed.unicodeScalars.contains(where: invisible.contains) ? nil : typed
+    }
 
     var carbonModifiers: UInt32 {
         var result = 0
@@ -171,13 +193,25 @@ struct Config: Codable, Equatable {
         return bindings
     }()
 
+    /// Allowed values for `gap` and `outerPadding`, in points.
+    static let spacingRange: ClosedRange<Double> = 0...100
+
     init() {}
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let defaults = Config()
-        gap = try container.decodeIfPresent(Double.self, forKey: .gap) ?? defaults.gap
-        outerPadding = try container.decodeIfPresent(Double.self, forKey: .outerPadding) ?? defaults.outerPadding
+        // Out-of-range spacing fails like an invalid hotkey, so the previous config stays in effect.
+        func spacing(_ key: CodingKeys) throws -> Double? {
+            guard let value = try container.decodeIfPresent(Double.self, forKey: key) else { return nil }
+            guard Self.spacingRange.contains(value) else {
+                throw DecodingError.dataCorruptedError(forKey: key, in: container, debugDescription:
+                    "\"\(key.stringValue)\" must be between \(Int(Self.spacingRange.lowerBound)) and \(Int(Self.spacingRange.upperBound))")
+            }
+            return value
+        }
+        gap = try spacing(.gap) ?? defaults.gap
+        outerPadding = try spacing(.outerPadding) ?? defaults.outerPadding
         floatingBundleIDs = try container.decodeIfPresent([String].self, forKey: .floatingBundleIDs) ?? defaults.floatingBundleIDs
         let decodedBindings = try container.decodeIfPresent([Action: KeyCombo?].self, forKey: .bindings) ?? [:]
         // Actions missing from the file (e.g. added in a newer version) get their default hotkey.

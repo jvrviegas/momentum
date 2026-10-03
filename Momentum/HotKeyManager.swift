@@ -15,18 +15,26 @@ final class HotKeyManager {
                             Unmanaged.passUnretained(self).toOpaque(), &handlerRef)
     }
 
-    /// Replaces all registered hotkeys. Combos already taken by another app are skipped.
-    func register(_ bindings: [Action: KeyCombo?]) {
+    /// Replaces all registered hotkeys. Returns the actions whose combo wasn't registered, because an
+    /// earlier action (in `Action.allCases` order) already uses it or the system refused it.
+    @discardableResult
+    func register(_ bindings: [Action: KeyCombo?]) -> Set<Action> {
         unregisterAll()
-        for (index, (action, combo)) in bindings.enumerated() {
-            guard let combo, let keyCode = combo.keyCode else { continue }
+        var failed: Set<Action> = []
+        var used: Set<KeyCombo> = []
+        for (index, action) in Action.allCases.enumerated() {
+            guard let combo = bindings[action] ?? nil, let keyCode = combo.keyCode else { continue }
             let id = EventHotKeyID(signature: Self.signature, id: UInt32(index))
             var ref: EventHotKeyRef?
-            if RegisterEventHotKey(keyCode, combo.carbonModifiers, id, GetApplicationEventTarget(), 0, &ref) == noErr, let ref {
+            if used.insert(combo).inserted,
+               RegisterEventHotKey(keyCode, combo.carbonModifiers, id, GetApplicationEventTarget(), 0, &ref) == noErr, let ref {
                 hotKeyRefs.append(ref)
                 actions[UInt32(index)] = action
+            } else {
+                failed.insert(action)
             }
         }
+        return failed
     }
 
     func unregisterAll() {

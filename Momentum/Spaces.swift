@@ -2,20 +2,7 @@ import AppKit
 
 typealias SpaceID = UInt64
 
-// Read-only private SkyLight/CoreGraphics symbols. There is no public API that identifies
-// which native Space (Desktop) is visible or which Space a window belongs to.
-@_silgen_name("CGSMainConnectionID")
-private func CGSMainConnectionID() -> Int32
-
-@_silgen_name("CGSGetActiveSpace")
-private func CGSGetActiveSpace(_ connection: Int32) -> UInt64
-
-@_silgen_name("CGSManagedDisplayGetCurrentSpace")
-private func CGSManagedDisplayGetCurrentSpace(_ connection: Int32, _ displayUUID: CFString) -> UInt64
-
-@_silgen_name("CGSCopySpacesForWindows")
-private func CGSCopySpacesForWindows(_ connection: Int32, _ mask: Int32, _ windowIDs: CFArray) -> CFArray
-
+/// Uses the read-only private SkyLight functions declared in `Momentum-Bridging-Header.h`.
 enum Spaces {
     private static let allSpacesMask: Int32 = 0x7
 

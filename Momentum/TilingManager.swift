@@ -7,6 +7,8 @@ import Observation
         didSet { scheduleRefresh() }
     }
     private(set) var isTrusted = false
+    /// Actions whose hotkey couldn't be registered (bound twice, or refused by the system).
+    private(set) var failedHotKeys: Set<Action> = []
 
     @ObservationIgnored private let configStore: ConfigStore
     @ObservationIgnored private let observer = WindowObserver()
@@ -22,6 +24,8 @@ import Observation
     @ObservationIgnored private var isSuspended = false
     /// Set while the user drags or resizes a window, so the layout doesn't fight the mouse.
     @ObservationIgnored private var isTrackingDrag = false
+    /// Set when the tracked drag resized the window rather than only moving it.
+    @ObservationIgnored private var dragResized = false
 
     init(configStore: ConfigStore) {
         self.configStore = configStore
@@ -31,16 +35,19 @@ import Observation
 
     func start() async {
         hotKeys.onAction = { [weak self] action in self?.perform(action) }
-        hotKeys.register(config.bindings)
+        failedHotKeys = hotKeys.register(config.bindings)
         configStore.onChange = { [weak self] config in
-            self?.hotKeys.register(config.bindings)
-            self?.scheduleRefresh()
+            guard let self else { return }
+            failedHotKeys = hotKeys.register(config.bindings)
+            scheduleRefresh()
         }
 
         await Permissions.waitForAccessibility()
         isTrusted = true
+        // AX calls wait for the target app to answer; don't let a hung app freeze Momentum for the default ~6 s.
+        AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 1)
         observer.onEvent = { [weak self] in self?.scheduleRefresh() }
-        observer.onUserDrag = { [weak self] window in self?.trackDrag(of: window) }
+        observer.onUserDrag = { [weak self] window, isResize in self?.trackDrag(of: window, isResize: isResize) }
         observer.start()
         refresh()
     }
@@ -72,21 +79,27 @@ import Observation
         }
         windows = Dictionary(current.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
 
-        let tileable = Set(current.filter { !isFloating($0) }.map(\.id))
         var tree = trees[space] ?? BSPTree()
-        for id in tree.windows where !tileable.contains(id) {
-            tree.remove(id)
-        }
-        // Keep a stable insertion order for windows discovered together.
-        for window in current where tileable.contains(window.id) && !tree.contains(window.id) {
-            tree.insert(window.id, at: lastFocused, bounds: tilingBounds)
-        }
+        tree.sync(with: current.filter { !isFloating($0) }.map(\.id), focused: lastFocused, bounds: tilingBounds)
         trees[space] = tree
         apply(tree)
+        pruneState(except: space)
 
         if let focused = focusedWindow?.id, windows[focused] != nil {
             lastFocused = focused
         }
+    }
+
+    /// Forgets windows that closed or moved away while their Space wasn't visible, Spaces left with no windows,
+    /// and closed floating windows. Minimized and hidden windows still belong to their Space, so they're kept.
+    private func pruneState(except current: SpaceID) {
+        for (space, var tree) in trees where space != current {
+            for id in tree.windows where Spaces.space(for: id) != space {
+                tree.remove(id)
+            }
+            trees[space] = tree.isEmpty ? nil : tree
+        }
+        floating = floating.filter { Spaces.space(for: $0) != nil }
     }
 
     private func apply(_ tree: BSPTree) {
@@ -97,9 +110,15 @@ import Observation
     }
 
     /// Waits for the mouse button to be released, then handles the drop.
-    private func trackDrag(of window: AXWindow) {
-        guard isEnabled, !isTrackingDrag, !isSuspended else { return }
+    private func trackDrag(of window: AXWindow, isResize: Bool) {
+        guard isEnabled, !isSuspended else { return }
+        guard !isTrackingDrag else {
+            // Resizing from the left or top edge also moves the window, so any resize step marks the whole drag.
+            if isResize { dragResized = true }
+            return
+        }
         isTrackingDrag = true
+        dragResized = isResize
         Task {
             while NSEvent.pressedMouseButtons & 1 != 0 {
                 try? await Task.sleep(for: .milliseconds(30))
@@ -109,13 +128,13 @@ import Observation
         }
     }
 
-    /// Dropping a tiled window onto another tiled window swaps them; any other drop snaps it back into place.
+    /// Dropping a moved tiled window onto another tiled window swaps them; any other drop,
+    /// including the end of a resize, snaps it back into place.
     private func drop(_ window: AXWindow) {
         let space = Spaces.mainDisplaySpace
-        if var tree = trees[space], tree.contains(window.id),
+        if !dragResized, var tree = trees[space], tree.contains(window.id),
            let cursor = CGEvent(source: nil)?.location,
-           let target = tree.layout(in: tilingBounds, gap: config.gap)
-               .first(where: { $0.key != window.id && $0.value.contains(cursor) })?.key {
+           let target = tree.window(at: cursor, excluding: window.id, in: tilingBounds, gap: config.gap) {
             tree.swap(window.id, target)
             trees[space] = tree
         }
@@ -154,12 +173,15 @@ import Observation
     // MARK: - Commands
 
     private func perform(_ action: Action) {
-        guard isTrusted else { return }
+        // While a window is being carried to another Desktop, a second command would interfere with the synthetic drag.
+        guard isTrusted, !isSuspended else { return }
         switch action {
-        case .focus(let direction): focus(direction)
-        case .move(let direction): move(direction)
         case .sendToDesktop(let number): sendToDesktop(number)
         case .switchToDesktop(let number): Task { await SpaceMover.switchTo(desktop: number) }
+        // The other commands act on the layout, which isn't maintained while tiling is off.
+        case _ where !isEnabled: break
+        case .focus(let direction): focus(direction)
+        case .move(let direction): move(direction)
         case .toggleFloat: toggleFloat()
         case .retile: retile()
         }
@@ -195,7 +217,7 @@ import Observation
         // Close the gap on the current Desktop right away; once we switch Desktops these windows are no longer visible to AX.
         // If the move fails, the next refresh puts the window back since it's still on this Desktop.
         let space = Spaces.mainDisplaySpace
-        if var tree = trees[space] {
+        if isEnabled, var tree = trees[space] {
             tree.remove(window.id)
             trees[space] = tree
             apply(tree)
