@@ -173,6 +173,7 @@ struct KeyCombo: Hashable, Codable, CustomStringConvertible {
 struct Config: Codable, Equatable {
     var gap: Double = 8
     var outerPadding: Double = 8
+    var animationsEnabled = true
     var floatingBundleIDs: [String] = ["com.apple.systempreferences"]
     /// A `nil` value means the user explicitly unbound the action (stored as `null` in JSON).
     var bindings: [Action: KeyCombo?] = Config.defaultBindings
@@ -212,6 +213,7 @@ struct Config: Codable, Equatable {
         }
         gap = try spacing(.gap) ?? defaults.gap
         outerPadding = try spacing(.outerPadding) ?? defaults.outerPadding
+        animationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .animationsEnabled) ?? defaults.animationsEnabled
         floatingBundleIDs = try container.decodeIfPresent([String].self, forKey: .floatingBundleIDs) ?? defaults.floatingBundleIDs
         let decodedBindings = try container.decodeIfPresent([Action: KeyCombo?].self, forKey: .bindings) ?? [:]
         // Actions missing from the file (e.g. added in a newer version) get their default hotkey.

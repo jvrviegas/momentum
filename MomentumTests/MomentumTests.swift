@@ -13,6 +13,24 @@ struct ConfigTests {
         #expect(config.bindings[.switchToDesktop(2)] == KeyCombo(key: "2", modifiers: [.alt]))
     }
 
+    @Test func animationDefaultsToEnabledForExistingConfigs() throws {
+        let config = try JSONDecoder().decode(Config.self, from: Data(#"{ "gap": 12 }"#.utf8))
+        #expect(config.animationsEnabled)
+    }
+
+    @Test func animationsCanBeDisabledAndRoundTrip() throws {
+        let config = try JSONDecoder().decode(Config.self, from: Data(#"{ "animationsEnabled": false }"#.utf8))
+        #expect(!config.animationsEnabled)
+        let data = try JSONEncoder().encode(config)
+        #expect(try JSONDecoder().decode(Config.self, from: data) == config)
+    }
+
+    @Test func invalidAnimationSettingIsRejected() throws {
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(Config.self, from: Data(#"{ "animationsEnabled": "yes" }"#.utf8))
+        }
+    }
+
     @Test func roundTripsThroughJSON() throws {
         var config = Config()
         config.bindings[.retile] = .some(nil)

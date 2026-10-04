@@ -4,7 +4,10 @@ import Observation
 /// Keeps one BSP tree per native Space and tiles the main display's windows.
 @Observable final class TilingManager {
     var isEnabled = true {
-        didSet { scheduleRefresh() }
+        didSet {
+            if !isEnabled { cancelAnimation() }
+            scheduleRefresh()
+        }
     }
     private(set) var isTrusted = false
     /// Actions whose hotkey couldn't be registered (bound twice, or refused by the system).
@@ -20,6 +23,9 @@ import Observation
     @ObservationIgnored private var floating: Set<WindowID> = []
     @ObservationIgnored private var lastFocused: WindowID?
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
+    @ObservationIgnored private var animation = WindowAnimation()
+    @ObservationIgnored private var animationTask: Task<Void, Never>?
+    @ObservationIgnored private var animationSpace: SpaceID?
     /// Set while a window is being dragged to another Desktop, so the layout isn't applied mid-drag.
     @ObservationIgnored private var isSuspended = false
     /// Set while the user drags or resizes a window, so the layout doesn't fight the mouse.
@@ -102,11 +108,72 @@ import Observation
         floating = floating.filter { Spaces.space(for: $0) != nil }
     }
 
-    private func apply(_ tree: BSPTree) {
-        for (id, frame) in tree.layout(in: tilingBounds, gap: config.gap) {
-            guard let window = windows[id], window.frame != frame else { continue }
-            window.setFrame(frame)
+    private var shouldAnimate: Bool {
+        config.animationsEnabled && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+
+    private func apply(_ tree: BSPTree, animated: Bool = true) {
+        let targets = tree.layout(in: tilingBounds, gap: config.gap)
+        let currentFrames = windows.compactMapValues(\.frame)
+        let space = Spaces.mainDisplaySpace
+        if animationSpace != space { cancelAnimation() }
+
+        // Don't generate mouse-drag notifications or fight a grab while a button is held.
+        guard animated, shouldAnimate, NSEvent.pressedMouseButtons & 1 == 0 else {
+            cancelAnimation()
+            for (id, frame) in targets where currentFrames[id] != frame {
+                windows[id]?.setFrame(frame)
+            }
+            return
         }
+
+        animation.retarget(to: targets, currentFrames: currentFrames, at: ProcessInfo.processInfo.systemUptime)
+        guard animation.isActive else {
+            cancelAnimation()
+            return
+        }
+        animationSpace = space
+        // Retarget the existing animation instead of queueing or restarting its tick loop.
+        guard animationTask == nil else { return }
+        animationTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .milliseconds(16))
+                } catch {
+                    return
+                }
+                guard let self else { return }
+                guard isEnabled, !isSuspended, !isTrackingDrag,
+                      animationSpace == Spaces.mainDisplaySpace else {
+                    cancelAnimation()
+                    return
+                }
+                // Pause writes during a click. An actual drag cancels via trackDrag; an ordinary
+                // click must still finish the layout on release rather than leave it half-tiled.
+                if NSEvent.pressedMouseButtons & 1 != 0 { continue }
+                // Check each tick so enabling Reduce Motion or disabling animations takes effect mid-transition.
+                if !shouldAnimate {
+                    if let tree = currentTree { apply(tree, animated: false) }
+                    else { cancelAnimation() }
+                    return
+                }
+                for (id, frame) in animation.frames(at: ProcessInfo.processInfo.systemUptime) {
+                    windows[id]?.setFrame(frame)
+                }
+                if !animation.isActive {
+                    animationTask = nil
+                    animationSpace = nil
+                    return
+                }
+            }
+        }
+    }
+
+    private func cancelAnimation() {
+        animationTask?.cancel()
+        animationTask = nil
+        animationSpace = nil
+        animation.cancel()
     }
 
     /// Waits for the mouse button to be released, then handles the drop.
@@ -117,6 +184,7 @@ import Observation
             if isResize { dragResized = true }
             return
         }
+        cancelAnimation()
         isTrackingDrag = true
         dragResized = isResize
         Task {
@@ -177,7 +245,9 @@ import Observation
         guard isTrusted, !isSuspended else { return }
         switch action {
         case .sendToDesktop(let number): sendToDesktop(number)
-        case .switchToDesktop(let number): Task { await SpaceMover.switchTo(desktop: number) }
+        case .switchToDesktop(let number):
+            cancelAnimation()
+            Task { await SpaceMover.switchTo(desktop: number) }
         // The other commands act on the layout, which isn't maintained while tiling is off.
         case _ where !isEnabled: break
         case .focus(let direction): focus(direction)
@@ -213,6 +283,7 @@ import Observation
     private func sendToDesktop(_ number: Int) {
         guard let window = focusedWindow else { return }
         refreshTask?.cancel()
+        cancelAnimation()
 
         // Close the gap on the current Desktop right away; once we switch Desktops these windows are no longer visible to AX.
         // If the move fails, the next refresh puts the window back since it's still on this Desktop.
@@ -220,7 +291,7 @@ import Observation
         if isEnabled, var tree = trees[space] {
             tree.remove(window.id)
             trees[space] = tree
-            apply(tree)
+            apply(tree, animated: false)
         }
 
         isSuspended = true
