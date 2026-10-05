@@ -31,6 +31,37 @@ struct ConfigTests {
         }
     }
 
+    @Test func reduceMotionOverrideDefaultsOffForExistingConfigs() throws {
+        let config = try JSONDecoder().decode(Config.self, from: Data(#"{ "gap": 12 }"#.utf8))
+        #expect(!config.ignoreReduceMotion)
+    }
+
+    @Test func reduceMotionOverrideRoundTrips() throws {
+        let config = try JSONDecoder().decode(Config.self, from: Data(#"{ "ignoreReduceMotion": true }"#.utf8))
+        #expect(config.ignoreReduceMotion)
+        #expect(try JSONDecoder().decode(Config.self, from: JSONEncoder().encode(config)) == config)
+    }
+
+    @Test func invalidReduceMotionOverrideIsRejected() throws {
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(Config.self, from: Data(#"{ "ignoreReduceMotion": "yes" }"#.utf8))
+        }
+    }
+
+    @Test func animationPolicyHonorsToggleAndOptionalReduceMotionOverride() {
+        for enabled in [false, true] {
+            for override in [false, true] {
+                for reduceMotion in [false, true] {
+                    var config = Config()
+                    config.animationsEnabled = enabled
+                    config.ignoreReduceMotion = override
+                    let expected = enabled && (override || !reduceMotion)
+                    #expect(config.shouldAnimate(reduceMotion: reduceMotion) == expected)
+                }
+            }
+        }
+    }
+
     @Test func roundTripsThroughJSON() throws {
         var config = Config()
         config.bindings[.retile] = .some(nil)

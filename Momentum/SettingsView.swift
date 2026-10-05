@@ -27,10 +27,12 @@ struct SettingsView: View {
                 TextField("Gap between windows", value: spacing(\.gap), format: .number)
                 TextField("Screen padding", value: spacing(\.outerPadding), format: .number)
                 Toggle("Animate tiling transitions", isOn: $configStore.config.animationsEnabled)
+                Toggle("Ignore Reduce Motion for Momentum", isOn: $configStore.config.ignoreReduceMotion)
+                    .disabled(!configStore.config.animationsEnabled)
             } header: {
                 Text("Layout")
             } footer: {
-                Text("Animations use a 200 ms ease-out transition and are disabled when Reduce Motion is on. Smoothness varies by app. Only the main display is tiled. Turn off \"Drag windows to screen edges to tile\" in System Settings › Desktop & Dock so macOS's own tiling doesn't compete with Momentum.")
+                Text("Animations use a 200 ms ease-out transition. Reduce Motion is respected unless you enable the Momentum-only override above; your system setting stays unchanged. Smoothness varies by app. Only the main display is tiled. Turn off \"Drag windows to screen edges to tile\" in System Settings › Desktop & Dock so macOS's own tiling doesn't compete with Momentum.")
             }
 
             Section("Floating apps") {

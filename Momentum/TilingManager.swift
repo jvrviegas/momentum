@@ -109,7 +109,7 @@ import Observation
     }
 
     private var shouldAnimate: Bool {
-        config.animationsEnabled && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        config.shouldAnimate(reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
     }
 
     private func apply(_ tree: BSPTree, animated: Bool = true) {
