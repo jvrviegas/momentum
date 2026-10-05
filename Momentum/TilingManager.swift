@@ -1,5 +1,6 @@
 import AppKit
 import Observation
+import QuartzCore
 
 /// Keeps one BSP tree per native Space and tiles the main display's windows.
 @Observable final class TilingManager {
@@ -24,7 +25,9 @@ import Observation
     @ObservationIgnored private var lastFocused: WindowID?
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var animation = WindowAnimation()
-    @ObservationIgnored private var animationTask: Task<Void, Never>?
+    @ObservationIgnored private var animationDisplayLink: CADisplayLink?
+    /// Last acknowledged requests, not assumed actual geometry. Final resizes repair native clamps.
+    @ObservationIgnored private var lastAnimationFrames: [WindowID: CGRect] = [:]
     @ObservationIgnored private var animationSpace: SpaceID?
     /// Set while a window is being dragged to another Desktop, so the layout isn't applied mid-drag.
     @ObservationIgnored private var isSuspended = false
@@ -122,57 +125,68 @@ import Observation
         guard animated, shouldAnimate, NSEvent.pressedMouseButtons & 1 == 0 else {
             cancelAnimation()
             for (id, frame) in targets where currentFrames[id] != frame {
-                windows[id]?.setFrame(frame)
+                windows[id]?.setFrame(frame, from: currentFrames[id],
+                                      forceResize: currentFrames[id]?.size != frame.size)
             }
             return
         }
 
-        animation.retarget(to: targets, currentFrames: currentFrames, at: ProcessInfo.processInfo.systemUptime)
+        animation.retarget(to: targets, currentFrames: currentFrames, at: CACurrentMediaTime())
         guard animation.isActive else {
             cancelAnimation()
             return
         }
         animationSpace = space
-        // Retarget the existing animation instead of queueing or restarting its tick loop.
-        guard animationTask == nil else { return }
-        animationTask = Task { [weak self] in
-            while !Task.isCancelled {
-                do {
-                    try await Task.sleep(for: .milliseconds(16))
-                } catch {
-                    return
-                }
-                guard let self else { return }
-                guard isEnabled, !isSuspended, !isTrackingDrag,
-                      animationSpace == Spaces.mainDisplaySpace else {
-                    cancelAnimation()
-                    return
-                }
-                // Pause writes during a click. An actual drag cancels via trackDrag; an ordinary
-                // click must still finish the layout on release rather than leave it half-tiled.
-                if NSEvent.pressedMouseButtons & 1 != 0 { continue }
-                // Check each tick so enabling Reduce Motion or disabling animations takes effect mid-transition.
-                if !shouldAnimate {
-                    if let tree = currentTree { apply(tree, animated: false) }
-                    else { cancelAnimation() }
-                    return
-                }
-                for (id, frame) in animation.frames(at: ProcessInfo.processInfo.systemUptime) {
-                    windows[id]?.setFrame(frame)
-                }
-                if !animation.isActive {
-                    animationTask = nil
-                    animationSpace = nil
-                    return
-                }
-            }
+        lastAnimationFrames = currentFrames
+        // Keep the display link when retargeting; no queued animations or catch-up frame bursts.
+        guard animationDisplayLink == nil else { return }
+        guard let screen = NSScreen.screens.first else {
+            apply(tree, animated: false)
+            return
         }
+        // The link retains its proxy, whose callback only weakly references the manager.
+        let target = AnimationDisplayLinkTarget { [weak self] link in
+            guard let self else {
+                link.invalidate()
+                return
+            }
+            animateFrame()
+        }
+        let link = screen.displayLink(target: target, selector: #selector(AnimationDisplayLinkTarget.tick(_:)))
+        animationDisplayLink = link
+        link.add(to: .main, forMode: .common)
+    }
+
+    private func animateFrame() {
+        guard isEnabled, !isSuspended, !isTrackingDrag,
+              animationSpace == Spaces.mainDisplaySpace else {
+            cancelAnimation()
+            return
+        }
+        // Pause writes during clicks; actual drags cancel via trackDrag. Finish on ordinary click release.
+        if NSEvent.pressedMouseButtons & 1 != 0 { return }
+        if !shouldAnimate {
+            if let tree = currentTree { apply(tree, animated: false) }
+            else { cancelAnimation() }
+            return
+        }
+        let resizing = animation.resizingWindows
+        for (id, frame) in animation.frames(at: CACurrentMediaTime()) {
+            guard let window = windows[id] else { continue }
+            let finalResize = resizing.contains(id) && !animation.isAnimating(id)
+            let succeeded = window.setFrame(frame, from: lastAnimationFrames[id],
+                                            forceResize: finalResize, repairClamping: finalResize)
+            // After a failed AX write, fall back to the full sequence rather than trusting the cache.
+            lastAnimationFrames[id] = succeeded ? frame : nil
+        }
+        if !animation.isActive { cancelAnimation() }
     }
 
     private func cancelAnimation() {
-        animationTask?.cancel()
-        animationTask = nil
+        animationDisplayLink?.invalidate()
+        animationDisplayLink = nil
         animationSpace = nil
+        lastAnimationFrames.removeAll()
         animation.cancel()
     }
 
@@ -302,5 +316,19 @@ import Observation
             // The old Desktop's tree drops it on the next refresh after switching back.
             refresh()
         }
+    }
+}
+
+/// CADisplayLink requires an Objective-C selector; keep the observable manager out of its retain graph.
+private final class AnimationDisplayLinkTarget: NSObject {
+    private let onFrame: (CADisplayLink) -> Void
+
+    init(onFrame: @escaping (CADisplayLink) -> Void) {
+        self.onFrame = onFrame
+        super.init()
+    }
+
+    @objc func tick(_ link: CADisplayLink) {
+        onFrame(link)
     }
 }
