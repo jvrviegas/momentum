@@ -8,14 +8,16 @@
 **Linear state:** N/A — repository-local feature  
 **PR:** None; no remote operation performed
 
-## Current verdict — re-review 2026-10-06
+## Current verdict — final review 2026-10-06
 
-**Commit:** `54b1cad7ede55f887c5a60208e4ac109854cc540`  
-**Result:** ❌ **Changes Requested — manual acceptance gate only**  
-**B1:** ✅ Resolved · **B2:** ✅ Resolved · **B3:** ❌ Still open  
-**Fresh validation:** 38 focused tests and all 93 regression tests passed; no new code blockers found.
+**Reviewed commit:** `7ae9bf7a37f48321c122c1f521c6f80be8b9bd3d`  
+**Result:** ✅ **Approved for merge with the owner's explicit VoiceOver-test exception**  
+**B1:** ✅ Resolved · **B2:** ✅ Resolved · **B3:** ✅ Resolved at the evidence level recorded in QA  
+**Fresh validation:** 93 regression tests passed; five native injected-error UI scenarios passed. Remaining ordinary manual groups were confirmed by the owner.
 
-The original review below is preserved as historical evidence. See the appended round-1 re-review for its statuses and verification. Subsequent partial native testing, final bold Charged icon selection (`594a0d9`) and local installation are recorded in `docs/qa/keep-awake-validation.md`; this report remains a snapshot of the reviewed commits, not a new full manual sign-off.
+VoiceOver was explicitly declined, not passed. Critical-battery exhaustion was excluded by the approved safe test plan. Approval combines independently observed native/component evidence with clearly attributed owner reports; it does not claim independent traces for every manual check.
+
+The original reviews below are preserved as historical evidence. The final review section supersedes their verdicts.
 
 ## Initial review: ❌ Result: Changes Requested
 
@@ -261,4 +263,54 @@ Harness output: `/tmp/momentum-keep-awake-rereview-repro.log`. It uses only fake
 - **Recommendation:** No further implementation fix is requested by this review. Complete and record the approved manual OS/UI/accessibility evidence before full approval, shipping claims or README checkbox changes.
 
 **Next step:** Complete the manual checks and ask me to `re-review keep-awake`; I will verify the remaining B3 evidence, rerun the relevant checks and update this file.
+
+---
+
+## Final review — 2026-10-06 (round 2)
+
+**Reviewed commit:** `7ae9bf7a37f48321c122c1f521c6f80be8b9bd3d`  
+**Previous reviewed commit:** `54b1cad7ede55f887c5a60208e4ac109854cc540`  
+**Result:** ✅ **Approved for merge, with owner-requested VoiceOver exception**
+
+### Scope
+
+Application changes since the previous review are confined to the owner-selected bold Charged SVG and the corrected macOS 27 permission-pane hint. Core assertion/session/config/hotkey logic is unchanged; B1/B2 fixes remain intact. Reviewed that diff and the updated acceptance evidence. No further implementation edits were made as part of this review.
+
+### Prior findings
+
+| Finding | Status | Evidence |
+|---|---|---|
+| B1 — late mode Retry starts a replacement session | ✅ Resolved | Existing exact/after/before-deadline regressions still pass in the fresh full suite. |
+| B2 — failed downgrade changes old working mode/default | ✅ Resolved | Ownership/persistence/deadline regressions still pass; native rendered downgrade-failure UI and actual Retry also verified. |
+| B3 — missing manual acceptance | ✅ Resolved with explicit exceptions | Owner confirmed the remaining idle/display, expired-wake and UI groups; native denied-permission startup/controls/no-extra-prompt passed by owner report. Agent independently verified five injected failure presentations and Retry actions in production view/service components. See `docs/qa/keep-awake-validation.md`. |
+
+### Current criteria
+
+| Criteria | Status / evidence |
+|---|---|
+| KA-01–KA-02 | ✅ Met: intended idle assertion types, defaults and enum round trips; owner confirmed both idle/display modes. Final timing/power-source traces are user-reported, not independently captured. |
+| KA-03–KA-08 | ✅ Met: controls/persistence/Start/Stop/extension/mode transactions, actual closed-popover countdown and natural expiry, owner-selected native template icon. |
+| KA-09–KA-10 | ✅ Met: captured explicit/lid sleep, continuous clock, timed/indefinite valid wake, native exit/forced-exit/inactive relaunch; owner confirmed wake past deadline stays inactive. |
+| KA-11–KA-12 | ✅ Met: fresh denied-permission startup, controls/shortcut/no-extra-prompt by owner confirmation; routing/null-binding/collision/live-config tests and prior tiling-disabled native shortcut evidence. |
+| KA-13–KA-15 | ✅ Met within OS limits: captured power transitions and lock/sleep/lid behavior; public idle types do not bypass OS protections. Unsafe critical-battery exhaustion was intentionally excluded. |
+| KA-16 | ✅ Met: one config store, no runtime persistence, external edit isolation, transactional save/rollback coverage. |
+| KA-17 | ✅ Met with disclosed exception: owner confirmed keyboard/appearance/command checks; native view/AX error labels inspected. VoiceOver speech/navigation test skipped at owner's explicit request, not passed. |
+| KA-18–KA-20 | ✅ Met: assertion/save/release failures retain correct state/default/deadline and show inline errors; actual native Retry buttons recover; strict invalid reload/error feedback covered by tests and owner UI confirmation. |
+
+### Fresh validation
+
+- **93 tests in 12 suites passed** after the permission-copy fix. Result: `/tmp/momentum-keep-awake-final.HO1pVD/Tests.xcresult`.
+- **Five native component UI scenarios passed:** activation, second assertion, active mode acquisition, persistence, downgrade release. Actual production `MenuBarContent`/`KeepAwakeService` were hosted in a native NSHostingView with fake power clients and temporary stores; no shipping failure-injection option was added.
+- Actual Retry buttons were activated through native AX controls, not replaced with direct service calls. Error rows disappeared; active-mode deadlines remained identical. Screenshots are retained under `docs/qa/keep-awake-errors/`.
+- `git diff --check` passed. No Swift compiler warnings; only the benign Xcode AppIntents extraction warning.
+- Remaining owner reports are documented as such, rather than represented as independently captured OS traces.
+- No new blocker found. No release/tag/merge operation is performed by this review.
+
+### Verdict
+
+- **Result:** ✅ Approved for merge with the explicit VoiceOver-test exception
+- **Blockers remaining:** 0
+- **Optional recommendations:** 0
+- **Recommendation:** The feature can proceed to merge. Keep the VoiceOver exception and OS safety limitations visible; do not describe this local/source-preview acceptance as a notarized public release.
+
 
