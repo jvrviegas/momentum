@@ -155,8 +155,12 @@ struct TaskKeepAwakeScheduler: KeepAwakeScheduler {
 
     func retry() {
         guard !isSavingPreference else { return }
+        let wasActive = isActive
+        let attemptedMode = retryMode
         reevaluate()
-        if let retryMode, isActive { changeMode(retryMode) }
+        // An active-session Retry must never become Start when that session expires.
+        guard !wasActive || isActive else { return }
+        if let attemptedMode, isActive { changeMode(attemptedMode) }
         else if !isActive { start() }
         else {
             assertions.retryCleanup()

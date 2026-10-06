@@ -179,6 +179,48 @@ struct KeepAwakeServiceTests {
         }
     }
 
+    @Test func modeRetryAtOrAfterDeadlineCannotRestartSession() throws {
+        for offset in [0.0, 1.0] {
+            let f = KeepAwakeFixture()
+            defer { f.cleanup() }
+            f.service.start()
+            let deadline = try #require(f.service.deadline)
+            f.client.failCreateAt = 2
+            f.service.changeMode(.systemAndDisplay)
+            #expect(f.service.retryMode == .systemAndDisplay)
+            let preferences = f.config.store.config.keepAwake
+            let creates = f.client.creates.count
+            f.time = deadline + offset
+            f.service.retry() // No scheduler callback delivered before the user command.
+            #expect(!f.service.isActive)
+            #expect(f.service.deadline == nil)
+            #expect(f.service.retryMode == nil)
+            #expect(f.client.creates.count == creates)
+            #expect(f.client.live.isEmpty)
+            #expect(f.scheduler.liveCount == 0)
+            #expect(f.config.store.config.keepAwake == preferences)
+        }
+    }
+
+    @Test func modeRetryJustBeforeDeadlinePreservesOriginalDeadline() throws {
+        let f = KeepAwakeFixture()
+        defer { f.cleanup() }
+        f.service.start()
+        let deadline = try #require(f.service.deadline)
+        f.client.failCreateAt = 2
+        f.service.changeMode(.systemAndDisplay)
+        f.time = deadline - 0.1
+        f.service.retry()
+        #expect(f.service.mode == .systemAndDisplay)
+        #expect(f.service.deadline == deadline)
+        #expect(f.service.error == nil)
+        #expect(f.config.store.config.keepAwake.mode == .systemAndDisplay)
+        f.time = deadline
+        f.scheduler.fireLatest()
+        #expect(!f.service.isActive)
+        #expect(f.client.live.isEmpty)
+    }
+
     @Test func failedWakeEndsSessionAndRetryStartsRememberedConfiguration() {
         let f = KeepAwakeFixture()
         defer { f.cleanup() }
