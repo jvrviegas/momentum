@@ -9,13 +9,14 @@ enum Action: Hashable, CaseIterable, RawRepresentable, Codable, CodingKeyReprese
     case switchToDesktop(Int)
     case toggleFloat
     case retile
+    case toggleKeepAwake
 
     static var allCases: [Action] {
         Direction.allCases.map(Action.focus)
             + Direction.allCases.map(Action.move)
             + (1...9).map(Action.sendToDesktop)
             + (1...9).map(Action.switchToDesktop)
-            + [.toggleFloat, .retile]
+            + [.toggleFloat, .retile, .toggleKeepAwake]
     }
 
     init?(rawValue: String) {
@@ -32,6 +33,7 @@ enum Action: Hashable, CaseIterable, RawRepresentable, Codable, CodingKeyReprese
         case .switchToDesktop(let number): "switch-to-desktop-\(number)"
         case .toggleFloat: "toggle-float"
         case .retile: "retile"
+        case .toggleKeepAwake: "toggle-keep-awake"
         }
     }
 
@@ -43,6 +45,7 @@ enum Action: Hashable, CaseIterable, RawRepresentable, Codable, CodingKeyReprese
         case .switchToDesktop(let number): "Switch to Desktop \(number)"
         case .toggleFloat: "Toggle floating"
         case .retile: "Retile"
+        case .toggleKeepAwake: "Toggle Keep Awake"
         }
     }
 }
@@ -169,8 +172,63 @@ struct KeyCombo: Hashable, Codable, CustomStringConvertible {
     }()
 }
 
+enum KeepAwakeDuration: String, Codable, CaseIterable {
+    case fifteenMinutes = "15m", thirtyMinutes = "30m", oneHour = "1h", twoHours = "2h"
+    case fourHours = "4h", eightHours = "8h", untilStopped = "until-stopped"
+
+    var seconds: Double? {
+        switch self {
+        case .fifteenMinutes: 900
+        case .thirtyMinutes: 1800
+        case .oneHour: 3600
+        case .twoHours: 7200
+        case .fourHours: 14400
+        case .eightHours: 28800
+        case .untilStopped: nil
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .fifteenMinutes: "15 minutes"
+        case .thirtyMinutes: "30 minutes"
+        case .oneHour: "1 hour"
+        case .twoHours: "2 hours"
+        case .fourHours: "4 hours"
+        case .eightHours: "8 hours"
+        case .untilStopped: "Until stopped"
+        }
+    }
+}
+
+enum KeepAwakeMode: String, Codable, CaseIterable {
+    case system
+    case systemAndDisplay = "system-and-display"
+
+    var title: String {
+        self == .system ? "Keep system awake" : "Keep system and display awake"
+    }
+}
+
+struct KeepAwakePreferences: Codable, Equatable {
+    var duration: KeepAwakeDuration = .thirtyMinutes
+    var mode: KeepAwakeMode = .system
+
+    init(duration: KeepAwakeDuration = .thirtyMinutes, mode: KeepAwakeMode = .system) {
+        self.duration = duration
+        self.mode = mode
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        duration = try container.contains(.duration) ? container.decode(KeepAwakeDuration.self, forKey: .duration) : .thirtyMinutes
+        mode = try container.contains(.mode) ? container.decode(KeepAwakeMode.self, forKey: .mode) : .system
+    }
+}
+
 /// User configuration, persisted as JSON. Missing keys fall back to defaults so the file can be partially edited.
 struct Config: Codable, Equatable {
+    var keepAwake = KeepAwakePreferences()
     var gap: Double = 8
     var outerPadding: Double = 8
     var animationsEnabled = true
@@ -221,6 +279,8 @@ struct Config: Codable, Equatable {
         outerPadding = try spacing(.outerPadding) ?? defaults.outerPadding
         animationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .animationsEnabled) ?? defaults.animationsEnabled
         ignoreReduceMotion = try container.decodeIfPresent(Bool.self, forKey: .ignoreReduceMotion) ?? defaults.ignoreReduceMotion
+        keepAwake = try container.contains(.keepAwake)
+            ? container.decode(KeepAwakePreferences.self, forKey: .keepAwake) : defaults.keepAwake
         floatingBundleIDs = try container.decodeIfPresent([String].self, forKey: .floatingBundleIDs) ?? defaults.floatingBundleIDs
         let decodedBindings = try container.decodeIfPresent([Action: KeyCombo?].self, forKey: .bindings) ?? [:]
         // Actions missing from the file (e.g. added in a newer version) get their default hotkey.
