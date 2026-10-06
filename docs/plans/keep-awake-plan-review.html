@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Keep Awake Revisão do Plano</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+:root {
+  color-scheme: light;
+  --paper: #f5f7fa;
+  --surface: #ffffff;
+  --surface-2: #eef1f5;
+  --ink: #18212c;
+  --ink-2: #4a5666;
+  --ink-3: #6f7b8b;
+  --rule: #d8dee6;
+  --accent: #2b5d8a;
+  --accent-soft: #e3ecf5;
+  --producing: #2c8a57;
+  --producing-soft: #e1f2e8;
+  --stopped: #c0492f;
+  --stopped-soft: #f8e5e0;
+  --unknown: #7c8695;
+  --unknown-soft: #eceef1;
+  --new: #2c8a57;
+  --mod: #a86a12;
+  --mod-soft: #f6ecda;
+  --warn-bg: #fbf3e2;
+  --warn-rule: #e3c98f;
+  --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #11161d;
+    --surface: #18202a;
+    --surface-2: #1f2934;
+    --ink: #e6ebf1;
+    --ink-2: #b1bcc9;
+    --ink-3: #8894a3;
+    --rule: #2d3947;
+    --accent: #7fb0dc;
+    --accent-soft: #1d2d3e;
+    --producing: #5cc28a;
+    --producing-soft: #16301f;
+    --stopped: #ee7c62;
+    --stopped-soft: #3a1f19;
+    --unknown: #9aa4b2;
+    --unknown-soft: #252d37;
+    --new: #5cc28a;
+    --mod: #e0a94f;
+    --mod-soft: #33271a;
+    --warn-bg: #2c2517;
+    --warn-rule: #6b5628;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #11161d;
+  --surface: #18202a;
+  --surface-2: #1f2934;
+  --ink: #e6ebf1;
+  --ink-2: #b1bcc9;
+  --ink-3: #8894a3;
+  --rule: #2d3947;
+  --accent: #7fb0dc;
+  --accent-soft: #1d2d3e;
+  --producing: #5cc28a;
+  --producing-soft: #16301f;
+  --stopped: #ee7c62;
+  --stopped-soft: #3a1f19;
+  --unknown: #9aa4b2;
+  --unknown-soft: #252d37;
+  --new: #5cc28a;
+  --mod: #e0a94f;
+  --mod-soft: #33271a;
+  --warn-bg: #2c2517;
+  --warn-rule: #6b5628;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 16px/1.6 var(--f-body);
+  padding: 0 16px;
+  padding-block: 40px 80px;
+}
+.wrap { max-width: 860px; margin: 0 auto; display: grid; gap: 56px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; line-height: 1.15; margin: 0; }
+h1 { font-size: clamp(30px, 5vw, 42px); font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 26px; font-weight: 600; }
+h3 { font-size: 19px; font-weight: 600; }
+p { margin: 0; max-width: 68ch; }
+code, .mono { font-family: var(--f-mono); font-size: 0.86em; }
+code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; word-break: break-word; }
+a { color: var(--accent); }
+.eyebrow {
+  font: 500 12px/1 var(--f-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+section { display: grid; gap: 18px; }
+.lede { font-size: 18px; color: var(--ink-2); }
+.muted { color: var(--ink-2); }
+
+/* Header */
+header { display: grid; gap: 16px; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 14px; color: var(--ink-2); }
+.meta b { color: var(--ink); font-weight: 600; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+.fact { background: var(--surface); padding: 14px 16px; display: grid; gap: 2px; }
+.fact .n { font: 600 24px/1.1 var(--f-display); font-variant-numeric: tabular-nums; }
+.fact .l { font-size: 13px; color: var(--ink-2); }
+
+/* Flow diagram */
+.flow { display: grid; gap: 0; }
+.hop { display: grid; grid-template-columns: 40px 1fr; gap: 14px; align-items: start; }
+.hop .rail { display: flex; flex-direction: column; align-items: center; height: 100%; }
+.hop .dot { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--accent); background: var(--surface); color: var(--accent); font: 600 13px/24px var(--f-mono); text-align: center; flex: none; }
+.hop .line { flex: 1; width: 2px; background: var(--rule); min-height: 16px; }
+.hop:last-child .line { display: none; }
+.hop .body { padding-bottom: 22px; display: grid; gap: 6px; }
+.hop .body h3 { font-size: 17px; }
+.where { font: 400 13px/1.4 var(--f-mono); color: var(--ink-3); }
+.hop.external .dot { border-color: var(--ink-3); color: var(--ink-3); }
+
+/* File map */
+.files { display: grid; gap: 10px; }
+.file { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; align-items: baseline; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; }
+.file .path { font: 500 14px/1.4 var(--f-mono); word-break: break-all; }
+.file p { grid-column: 2; font-size: 15px; color: var(--ink-2); }
+.tag { font: 600 11px/1 var(--f-mono); letter-spacing: 0.06em; text-transform: uppercase; padding: 5px 7px; border-radius: 4px; white-space: nowrap; }
+.tag.new { color: var(--new); background: var(--producing-soft); }
+.tag.mod { color: var(--mod); background: var(--mod-soft); }
+.tag.keep { color: var(--ink-3); background: var(--unknown-soft); }
+.group-label { font: 600 13px/1 var(--f-display); letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-3); margin-top: 8px; }
+
+/* State lamps */
+.lamps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.lamp { border-radius: 8px; padding: 16px; display: grid; gap: 8px; border: 1px solid var(--rule); background: var(--surface); }
+.lamp .head { display: flex; align-items: center; gap: 10px; font: 600 18px/1 var(--f-display); }
+.lamp .bulb { width: 14px; height: 14px; border-radius: 50%; flex: none; }
+.lamp.producing .bulb { background: var(--producing); box-shadow: 0 0 0 4px var(--producing-soft); }
+.lamp.stopped .bulb { background: var(--stopped); box-shadow: 0 0 0 4px var(--stopped-soft); }
+.lamp.unknown .bulb { background: var(--unknown); box-shadow: 0 0 0 4px var(--unknown-soft); }
+.lamp .codes { font: 500 14px/1.4 var(--f-mono); color: var(--ink-2); }
+.lamp p { font-size: 15px; color: var(--ink-2); }
+
+/* Tables */
+.tbl { overflow-x: auto; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--rule); }
+th { font: 600 12px/1.3 var(--f-mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-3); background: var(--surface-2); }
+tr:last-child td { border-bottom: 0; }
+td.k { font-family: var(--f-mono); font-size: 13.5px; white-space: nowrap; }
+
+/* Decisions */
+.decisions { display: grid; gap: 12px; }
+.dec { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 16px 18px; display: grid; gap: 8px; }
+.dec.flag { border-color: var(--warn-rule); background: var(--warn-bg); }
+.dec .top { display: flex; gap: 12px; align-items: baseline; justify-content: space-between; flex-wrap: wrap; }
+.dec .id { font: 600 13px/1 var(--f-mono); color: var(--accent); margin-right: 8px; }
+.dec h3 { font-size: 18px; display: inline; }
+.dec .why { font-size: 15px; color: var(--ink-2); }
+.dec .mean { font-size: 15px; }
+.dec .mean b { font-weight: 600; }
+.check { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink-2); cursor: pointer; user-select: none; }
+.check input { width: 18px; height: 18px; accent-color: var(--producing); cursor: pointer; }
+.check input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pill { font: 600 11px/1 var(--f-mono); letter-spacing: 0.05em; text-transform: uppercase; padding: 4px 7px; border-radius: 4px; color: var(--mod); background: var(--mod-soft); }
+.progress { font-size: 14px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+/* Notes */
+.note { border-left: 3px solid var(--warn-rule); background: var(--warn-bg); padding: 14px 16px; border-radius: 0 8px 8px 0; display: grid; gap: 6px; }
+.note h3 { font-size: 17px; }
+ul.plain { margin: 0; padding-left: 20px; display: grid; gap: 6px; max-width: 70ch; }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.box { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 16px 18px; display: grid; gap: 10px; }
+
+/* Steps */
+ol.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; counter-reset: s; }
+ol.steps li { background: var(--surface); padding: 12px 16px; display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: baseline; counter-increment: s; }
+ol.steps li::before { content: "T" counter(s); font: 600 14px/1 var(--f-mono); color: var(--accent); }
+ol.steps .what { display: grid; gap: 2px; }
+ol.steps .what span { font-size: 14px; color: var(--ink-2); }
+ol.steps .c { font: 400 12.5px/1.3 var(--f-mono); color: var(--ink-3); text-align: right; }
+@media (max-width: 560px) {
+  ol.steps li { grid-template-columns: 36px 1fr; }
+  ol.steps .c { grid-column: 2; text-align: left; }
+  .file { grid-template-columns: 1fr; }
+  .file p { grid-column: 1; }
+}
+footer { font-size: 14px; color: var(--ink-3); border-top: 1px solid var(--rule); padding-top: 18px; }
+@media (prefers-reduced-motion: no-preference) {
+  .check input { transition: transform .12s; }
+  .check input:active { transform: scale(.92); }
+}
+</style>
+</head>
+<body><div class="wrap">
+<header><div class="eyebrow">Revisão do plano · Keep Awake · Momentum macOS</div><h1>Manter o Mac acordado, sem sair do Momentum</h1><p class="lede">Sessões temporizadas ou até parar, com proteção de sistema ou sistema e ecrã. Independentes do tiling, com preferências guardadas e sem restaurar sessões ao relançar.</p><div class="meta"><span><b>Repo</b> jvrviegas/momentum</span><span><b>Base</b> main · daf18d8</span><span><b>Spec</b> aprovada · 2026-10-06</span><span><b>Prazo</b> não definido</span></div><div class="facts"><div class="fact"><span class="n">12</span><span class="l">entradas novas (13 ficheiros)</span></div><div class="fact"><span class="n">8</span><span class="l">ficheiros alterados</span></div><div class="fact"><span class="n">20</span><span class="l">critérios mapeados a provas</span></div></div></header>
+<section><div class="eyebrow">A ideia num minuto</div><h2>O que vai ser construído</h2><p>Um popover nativo compacto com Keep Awake primeiro, os controlos de tiling abaixo e Settings, Check for Updates e Quit acessíveis.</p><ul class="plain"><li><b>Primeira utilização:</b> 30 minutos, só sistema; o ecrã pode dormir normalmente.</li><li><b>Durante uma sessão:</b> parar, alterar modo ou acrescentar +15/+30/+60 minutos sem mudar a duração guardada.</li><li><b>Sem AX:</b> Keep Awake funciona; a permissão continua a ser requisito apenas do tiling.</li></ul><p class="muted">Só preferências e binding são guardados. Sessões e prazos nunca são persistidos.</p></section>
+<section><div class="eyebrow">Onde acontece</div><h2>O percurso de uma sessão</h2><div class="flow"><div class="hop"><div class="rail"><span class="dot">1</span><span class="line"></span></div><div class="body"><h3>Controlos e shortcut</h3><p class="muted">Escolher preferências não inicia uma sessão; Start e toggle usam o mesmo service.</p><span class="where">Momentum/MenuBarContent.swift · novo / Momentum/AppController.swift · novo</span></div></div><div class="hop"><div class="rail"><span class="dot">2</span><span class="line"></span></div><div class="body"><h3>Validar a sessão</h3><p class="muted">O service lê o default ao iniciar, calcula o prazo e prepara uma alteração transacional.</p><span class="where">Momentum/KeepAwakeService.swift · novo / Momentum/ConfigStore.swift · alterado</span></div></div><div class="hop"><div class="rail"><span class="dot">3</span><span class="line"></span></div><div class="body"><h3>Pedir proteção ao macOS</h3><p class="muted">O adapter confirma todos os pedidos antes de publicar o estado ativo. Em caso de falha faz rollback.</p><span class="where">Momentum/PowerAssertions.swift · novo</span></div></div><div class="hop"><div class="rail"><span class="dot">4</span><span class="line"></span></div><div class="body"><h3>Mostrar e terminar</h3><p class="muted">Popover e label usam o mesmo prazo; expiry, Stop e Quit libertam os pedidos. Sleep/wake verifica validade antes de retomar.</p><span class="where">Momentum/MyApp.swift · alterado / Momentum/KeepAwakeService.swift · novo</span></div></div></div></section>
+<section><div class="eyebrow">A regra mais importante</div><h2>Só mostrar ativo quando a proteção foi aceite</h2><p><b>Nunca mostrar sucesso antes de todos os pedidos necessários serem confirmados.</b> Falhas mantêm a sessão anterior ou deixam o estado inativo, com erro inline.</p><div class="two"><div class="box"><h3>O Mac continua a mandar</h3><p class="muted">Sleep explícito, tampa, lock e bateria crítica não são contornados. Num ecrã bloqueado, o macOS pode desligar o display.</p></div><div class="box"><h3>Acordar depois do prazo</h3><p class="muted">Primeiro verificamos o prazo. Uma sessão expirada não volta a pedir proteção.</p></div></div></section>
+<section><div class="eyebrow">Mapa de ficheiros</div><h2>O que muda no repo</h2><div class="files"><div class="group-label">Novos</div><div class="file"><span class="tag new">novo</span><span class="path">Momentum/PowerAssertions.swift</span><p>Adapter para pedir e libertar proteção nativa.</p></div>
+<div class="file"><span class="tag new">novo</span><span class="path">Momentum/KeepAwakeService.swift</span><p>Sessões, prazo, extensão, erros e sleep/wake.</p></div>
+<div class="file"><span class="tag new">novo</span><span class="path">Momentum/AppController.swift</span><p>Hotkeys e config fora do ciclo de permissões do tiling.</p></div>
+<div class="file"><span class="tag new">novo</span><span class="path">Momentum/MenuBarContent.swift</span><p>Popover nativo e apresentação do estado.</p></div>
+<div class="file"><span class="tag new">novo</span><span class="path">Momentum/Assets.xcassets/MenuBarAwakeIcon.imageset/</span><p>Ícone ativo estático: Contents.json e awake.svg.</p></div>
+<div class="file"><span class="tag new">novo</span><span class="path">MomentumTests/ConfigStoreTests.swift</span><p>Persistência e reload com ficheiros temporários.</p></div>
+<div class="file"><span class="tag new">novo</span><span class="path">MomentumTests/PowerAssertionTests.swift</span><p>Falhas, rollback e libertação de pedidos.</p></div>
+<div class="file"><span class="tag new">novo</span><span class="path">MomentumTests/KeepAwakeServiceTests.swift</span><p>Transições e prazos com clock e adapter falsos.</p></div>
+<div class="file"><span class="tag new">novo</span><span class="path">MomentumTests/AppControllerTests.swift</span><p>Routing, independência de AX e regressões.</p></div>
+<div class="file"><span class="tag new">novo</span><span class="path">MomentumTests/KeepAwakePresentationTests.swift</span><p>Contagem arredondada, visibilidade e Retry.</p></div>
+<div class="file"><span class="tag new">novo</span><span class="path">docs/qa/keep-awake-validation.md</span><p>Evidência dos testes reais no macOS.</p></div>
+<div class="file"><span class="tag new">novo</span><span class="path">docs/spec/keep-awake.md</span><p>Comportamento atual, só quando verificado.</p></div><div class="group-label">Alterados</div><div class="file"><span class="tag mod">editar</span><span class="path">Momentum/Config.swift</span><p>Preferências e ação toggle-keep-awake.</p></div>
+<div class="file"><span class="tag mod">editar</span><span class="path">Momentum/ConfigStore.swift</span><p>Injeção de caminho, gravação transacional e cleanup.</p></div>
+<div class="file"><span class="tag mod">editar</span><span class="path">Momentum/TilingManager.swift</span><p>Deixa de gerir hotkeys globais; mantém as regras de tiling.</p></div>
+<div class="file"><span class="tag mod">editar</span><span class="path">Momentum/MyApp.swift</span><p>Composição dos services, label e window style; isolamento dos testes.</p></div>
+<div class="file"><span class="tag mod">editar</span><span class="path">Momentum/SettingsView.swift</span><p>Feedback dos hotkeys pelo AppController; AX explicado como requisito do tiling.</p></div>
+<div class="file"><span class="tag mod">editar</span><span class="path">MomentumTests/MomentumTests.swift</span><p>Regressões de config, ação e duplicados.</p></div>
+<div class="file"><span class="tag mod">editar</span><span class="path">README.md</span><p>Utilização e tracker, após validação.</p></div>
+<div class="file"><span class="tag mod">editar</span><span class="path">docs/plans/keep-awake-feature-spec.md</span><p>Estado e ligação à living spec quando entregue.</p></div><div class="group-label">Intocados de propósito</div><div class="file"><span class="tag keep">manter</span><span class="path">Momentum/SpaceMover.swift · Momentum/WindowAnimation.swift · layout</span><p>Não alterar movimentos de Desktop, animações ou regras de tiling.</p></div></div><p class="muted">O project file só muda se o build demonstrar que é necessário para linking IOKit. Branch e PR ainda não foram criados.</p></section>
+<section><div class="eyebrow">A tua revisão</div><h2>Decisões aprovadas</h2><p>João confirmou no chat a aprovação de D1–D8 em 2026-10-06. O plano pode começar por T1; as provas de viabilidade e comportamento no macOS continuam por executar. As marcações abaixo são apenas locais ao browser e não substituem a aprovação registada no plano.</p><div class="progress" id="dec-progress" aria-live="polite"></div><div class="decisions"><div class="dec flag"><div class="top"><div><span class="id">D5</span><h3>Falha ao retomar termina a sessão</h3></div><span class="pill">Decisão tua</span></div><p class="why">A spec não define uma falha de reacquisition ao acordar. A proposta evita mostrar proteção que não existe.</p><p class="mean"><b>O que significa:</b> Ao acordar, verificamos primeiro o prazo. Se a sessão ainda for válida mas o macOS recusar o pedido, fica inativa com erro. Retry inicia uma nova sessão com as preferências guardadas.</p><label class="check"><input type="checkbox" id="d5" data-dec> Concordo</label></div>
+<div class="dec flag"><div class="top"><div><span class="id">D6</span><h3>Falha ao guardar não altera o modo ativo</h3></div><span class="pill">Decisão tua</span></div><p class="why">Hoje o ConfigStore publica alterações antes de confirmar a gravação.</p><p class="mean"><b>O que significa:</b> O novo caminho grava antes de publicar. Se a gravação falhar durante uma mudança de modo, mantém-se a proteção anterior, o prazo e o default; as edições de tiling existentes não são reescritas.</p><label class="check"><input type="checkbox" id="d6" data-dec> Concordo</label></div>
+<div class="dec"><div class="top"><div><span class="id">D1</span><h3>Config explícita e compatível com ficheiros antigos</h3></div></div><p class="why">A spec mantém um único tiling.json e exige validação.</p><p class="mean"><b>O que significa:</b> Novo objeto keepAwake com duration (15m, 30m, 1h, 2h, 4h, 8h, until-stopped) e mode (system, system-and-display). Campos ausentes recebem defaults; null explícito e valores inválidos rejeitam o reload. Binding opcional sem tecla por defeito.</p><label class="check"><input type="checkbox" id="d1" data-dec> Concordo</label></div>
+<div class="dec"><div class="top"><div><span class="id">D2</span><h3>Só pedidos públicos de idle sleep</h3></div></div><p class="why">Os headers do SDK confirmam os tipos e os limites; falta experimentar no sistema.</p><p class="mean"><b>O que significa:</b> Pedimos proteção de sistema nos dois modos e também do ecrã no modo combinado. Aquisição parcial faz rollback. Nada de input simulado, caffeinate como engine ou overrides privados.</p><label class="check"><input type="checkbox" id="d2" data-dec> Concordo</label></div>
+<div class="dec"><div class="top"><div><span class="id">D3</span><h3>O tempo a dormir conta para o prazo</h3></div></div><p class="why">KA-09 exige tempo decorrido durante sleep.</p><p class="mean"><b>O que significa:</b> Um clock monotónico baseado em mach_continuous_time inclui sleep e não depende da hora do calendário. +15/+30/+60 soma ao prazo existente, sem limite acumulado de oito horas.</p><label class="check"><input type="checkbox" id="d3" data-dec> Concordo</label></div>
+<div class="dec"><div class="top"><div><span class="id">D4</span><h3>Um owner para hotkeys e config</h3></div></div><p class="why">Hoje o dispatcher exige confiança AX e o ConfigStore só permite um callback.</p><p class="mean"><b>O que significa:</b> AppController fica com esse callback e HotKeyManager. Encaminha Keep Awake diretamente e mantém refresh e regras do tiling; não acrescentamos uma registry de subscribers.</p><label class="check"><input type="checkbox" id="d4" data-dec> Concordo</label></div>
+<div class="dec"><div class="top"><div><span class="id">D7</span><h3>Popover compacto, ícone estático e contagem</h3></div></div><p class="why">KA-08 e KA-17 pedem uma superfície nativa, sem tabs ou animações.</p><p class="mean"><b>O que significa:</b> Window style com cerca de 320 pt, ajustável para acessibilidade. Ícone atual quando inativo, variante awake quando ativo e minutos arredondados para cima só nas sessões temporizadas.</p><label class="check"><input type="checkbox" id="d7" data-dec> Concordo</label></div>
+<div class="dec"><div class="top"><div><span class="id">D8</span><h3>Os testes não usam a config pessoal</h3></div></div><p class="why">Hoje o host de testes cria ConfigStore antes do guard de XCTest.</p><p class="mean"><b>O que significa:</b> Os testes usam diretórios temporários e adapters falsos. O host não inicia serviços nativos. Os testes reais correm num perfil macOS descartável.</p><label class="check"><input type="checkbox" id="d8" data-dec> Concordo</label></div></div></section>
+<section><div class="eyebrow">Atenção</div><h2>Sem alterações ao âmbito aprovado</h2><p>Não há issue Linear: a spec é local. D5 define uma falha ao acordar não detalhada na spec; D6 evita que uma gravação falhada pareça ter sido guardada.</p><div class="note"><h3>Dois riscos existentes tratados só onde necessário</h3><p>O host de testes cria hoje a config pessoal antes do guard de XCTest. Os hotkeys são geridos pelo TilingManager e o dispatcher exige AX. O plano corrige estes pontos para permitir testes isolados e routing independente; não faz cleanup geral.</p></div></section>
+<section><div class="eyebrow">Prova</div><h2>Como vamos saber que funciona</h2><p>Testes automáticos usam clock, scheduler e assertions falsos. M1–M7 exercitam macOS, power changes, sleep/wake, lock, crash e acessibilidade num perfil descartável. O planeamento consultou headers do SDK, mas ainda não executou essas provas.</p><div class="tbl"><table><thead><tr><th>Critério de aceitação</th><th>Verificado por</th></tr></thead><tbody><tr><td><b>KA-01</b> — Dois modos de proteção</td><td>P1, M1</td></tr><tr><td><b>KA-02</b> — Defaults e sete durações</td><td>C1, U2</td></tr><tr><td><b>KA-03</b> — Seletores guardam sem iniciar</td><td>C4, M6</td></tr><tr><td><b>KA-04</b> — Start, toggle, Stop e shortcut</td><td>P2, S1, A1, M1/M5</td></tr><tr><td><b>KA-05</b> — Expiry silencioso e sessão indefinida</td><td>S2, M2</td></tr><tr><td><b>KA-06</b> — Extensão sem cap acumulado</td><td>S3, U2, M2</td></tr><tr><td><b>KA-07</b> — Mudança de modo com prazo preservado</td><td>P3, S4, M7</td></tr><tr><td><b>KA-08</b> — Ícone estático, minutos e estado coerente</td><td>S8, U1/U2, M2/M6</td></tr><tr><td><b>KA-09</b> — Sleep conta para o prazo</td><td>S5, M3</td></tr><tr><td><b>KA-10</b> — Quit/crash termina; relaunch inativo</td><td>S6/S7, A4, M4</td></tr><tr><td><b>KA-11</b> — Independente de tiling e AX</td><td>A1/A2/A4, M5</td></tr><tr><td><b>KA-12</b> — Binding opcional com feedback</td><td>C2, A3, M5</td></tr><tr><td><b>KA-13</b> — Energia não altera a sessão</td><td>M4</td></tr><tr><td><b>KA-14</b> — Lock não altera o prazo</td><td>M3</td></tr><tr><td><b>KA-15</b> — Respeitar limites do macOS</td><td>T1 API evidence, M1/M3/M4; no unsafe battery test required</td></tr><tr><td><b>KA-16</b> — JSON único; runtime não persistido</td><td>C2/C4/C5, S7/S8, M5</td></tr><tr><td><b>KA-17</b> — Popover nativo e acessível</td><td>U2, M6</td></tr><tr><td><b>KA-18</b> — Falha ao iniciar com Retry inline</td><td>P1/P2, S9, U3, M7</td></tr><tr><td><b>KA-19</b> — Falha de modo mantém estado anterior</td><td>P3, S4/S9, U3, M7</td></tr><tr><td><b>KA-20</b> — Config inválida mantém último valor válido</td><td>C3/C5, M5</td></tr></tbody></table></div><p class="muted">Gate: xcodebuild test com DerivedData e xcresult temporários, mais git diff --check. Não marcar o tracker implementado antes da evidência OS e revisão. Não provocar descarga insegura da bateria.</p></section>
+<section><div class="eyebrow">Ordem de trabalho</div><h2>Commits por alteração coerente, com testes</h2><ol class="steps"><li><div class="what"><b>Validar a API e a UI</b><span>Experiência num perfil local descartável; falhas bloqueiam a execução.</span></div><span class="c">docs(keep-awake)</span></li><li><div class="what"><b>Preferências e config</b><span>Schema, binding, gravação transacional e testes isolados.</span></div><span class="c">feat(keep-awake)</span></li><li><div class="what"><b>Adapter de power assertions</b><span>IDs próprios, rollback e testes de falha.</span></div><span class="c">feat(keep-awake)</span></li><li><div class="what"><b>Service de sessões</b><span>Clock, extensão, expiry, sleep/wake e cleanup.</span></div><span class="c">feat(keep-awake)</span></li><li><div class="what"><b>Routing global</b><span>Separar hotkeys do tiling sem mudar as suas regras.</span></div><span class="c">refactor(hotkeys)</span></li><li><div class="what"><b>Popover e label</b><span>Controlos, erros inline, ícone e acessibilidade.</span></div><span class="c">feat(keep-awake)</span></li><li><div class="what"><b>Validação completa</b><span>Suite de regressão e M1–M7 com evidência real.</span></div><span class="c">test(keep-awake)</span></li><li><div class="what"><b>Documentar o que foi verificado</b><span>Living spec e README só após o gate.</span></div><span class="c">docs(keep-awake)</span></li></ol></section>
+<section><div class="eyebrow">Limites</div><h2>Fora de âmbito</h2><ul class="plain"><li>Durações personalizadas, deadlines de calendário e overrides da tampa.</li><li>Automação de energia, notificações de expiry, focus timer e restauração de sessões.</li><li>Tabs, branding excessivo, analytics e atividade simulada.</li><li>Refactors de tiling/Spaces, releases, versões e signing.</li></ul></section>
+<footer>Resume <a href="keep-awake-implementation-plan.md">docs/plans/keep-awake-implementation-plan.md</a> (v1 · 2026-10-06). O plano em markdown é a fonte para implementação; aprovar no browser não autoriza execução automática.</footer>
+</div>
+<script>
+(function () {
+  var KEY = "keep-awake-review";
+  var boxes = Array.prototype.slice.call(document.querySelectorAll("input[data-dec]"));
+  var out = document.getElementById("dec-progress");
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) { saved = {}; }
+  function render() {
+    var n = boxes.filter(function (b) { return b.checked; }).length;
+    out.textContent = n + " de " + boxes.length + " aprovadas" + (n === boxes.length ? " · pronto para entregar" : "");
+  }
+  boxes.forEach(function (b) {
+    b.checked = !!saved[b.id];
+    b.addEventListener("change", function () {
+      saved[b.id] = b.checked;
+      try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) {}
+      render();
+    });
+  });
+  render();
+})();
+</script>
+</body>
+</html>
