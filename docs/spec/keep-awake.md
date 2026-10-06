@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | **Area owner** | João |
-| **Last verified** | 2026-10-06: 93 automated tests, native assertion/controller smoke including downgrade; interactive OS/UI checks pending |
+| **Last verified** | 2026-10-06: 93 automated tests; native lifecycle/power/expiry checks and bold Charged icon comparison; remaining manual acceptance documented below |
 
 ## Overview
 
@@ -24,7 +24,7 @@ Keep Awake requests macOS idle-sleep protection independently of window tiling. 
 
 ## Behaviors
 
-The rules below describe implemented branch behavior. Automated tests verify state/persistence/presentation; native smoke verifies assertion requests and process-local lifecycle notifications. Actual idle/sleep/lid/lock effects and UI interaction are separately pending in the [validation record](../qa/keep-awake-validation.md).
+The rules below describe implemented branch behavior. Automated tests verify state/persistence/presentation; native smoke verifies assertion requests and process-local lifecycle notifications. Actual lock, explicit sleep, lid-close, valid timed/indefinite wake, power-source transitions, native expiry and app-exit/relaunch checks passed in the normal profile. Remaining idle-effect, wake-after-expiry and UI acceptance gaps are listed in the [validation record](../qa/keep-awake-validation.md).
 
 ### Configuration and commands
 
@@ -35,19 +35,19 @@ The rules below describe implemented branch behavior. Automated tests verify sta
 - **KA-05.** When a finite deadline is reached, the session stops silently. Until stopped has no scheduled expiry.
 - **KA-06.** When a valid timed session is extended by +15/+30/+60 minutes, that amount is added to the existing deadline without changing saved duration or imposing an eight-hour accumulated cap. Inactive, indefinite or expired sessions cannot be extended; indefinite sessions omit extension controls.
 - **KA-07.** When an active mode change succeeds, protection changes immediately, the original deadline remains, and the new default mode is saved. Existing protection remains held while additions are acquired and preferences are saved.
-- **KA-08.** When a session is active, the label selects a static awake icon. Timed sessions add minutes rounded up and the popover derives its status from the same deadline; indefinite sessions omit the number. Inactive sessions select the existing icon. Actual menu-bar rendering remains awaiting M2/M6.
+- **KA-08.** When a session is active, the label selects the static Charged icon: the Momentum mark with a bold central lightning bolt. Timed sessions add minutes rounded up and the popover derives its status from the same deadline; indefinite sessions omit the number. Inactive sessions select the existing icon. Native dark menu-bar rendering, closed-popover countdown and expiry passed; full keyboard/light-appearance acceptance remains pending.
 
 ### Lifecycle and independence
 
-- **KA-09.** On sleep notification, Momentum releases its assertions while retaining mode/deadline. On wake notification, it expires elapsed sessions before acquiring anything, or resumes valid sessions with the original deadline. The clock's API includes sleep time; actual sleep/wake testing remains pending M3.
-- **KA-10.** On termination, Momentum cancels scheduling, removes lifecycle listeners/global registrations, and releases its requests. A new service always starts inactive and retains only preferences. Native process-death cleanup passed the probe; interactive app relaunch remains pending M4.
+- **KA-09.** On sleep notification, Momentum releases its assertions while retaining mode/deadline. On wake notification, it expires elapsed sessions before acquiring anything, or resumes valid sessions with the original deadline. Actual timed and indefinite sleep/wake passed and the clock empirically included sleep time; actual wake after the timed deadline remains pending M3.
+- **KA-10.** On termination, Momentum cancels scheduling, removes lifecycle listeners/global registrations, and releases its requests. A new service always starts inactive and retains only preferences. Actual app Quit, forced-exit cleanup and inactive relaunch with retained preferences passed M4.
 - **KA-11.** When Accessibility is absent, tiling is disabled, or tiling commands are suspended, Keep Awake routing remains independent and does not request Accessibility. Tiling retains its existing startup prompt and command guards.
 - **KA-12.** When users bind `toggle-keep-awake` in Settings or JSON, it follows the same toggle behavior. It is unassigned by default; duplicate/unavailable-binding feedback uses the existing Settings mechanism. Earlier actions retain priority in collisions.
-- **KA-13.** When power source changes, Momentum has no power-source automation that modifies the session or deadline. Actual battery/external-supply interaction remains pending M4.
-- **KA-14.** When the screen locks, Momentum does not change its session/deadline or simulate input/unlock. Display idle protection is only a request; macOS can turn the locked display off. Actual lock behavior remains pending M3.
+- **KA-13.** When power source changes, Momentum has no power-source automation that modifies the session or deadline. Actual awake battery/external-supply transitions preserved the session and assertion IDs in M4.
+- **KA-14.** When the screen locks, Momentum does not change its session/deadline or simulate input/unlock. Display idle protection is only a request; macOS can turn the locked display off. User-confirmed lock/unlock preserved both requests and the elapsed deadline in M3.
 - **KA-15.** When protection is active, Momentum uses only public idle-sleep assertions, not unconditional system-sleep prevention. Explicit Sleep, lid-close, lock and critical-battery safeguards remain governed by macOS. This is an API boundary, not a guarantee of wakefulness; critical battery exhaustion is not tested.
 - **KA-16.** When preferences or bindings are saved, they use the shared `~/.config/momentum/tiling.json`. Runtime state is never encoded. Valid external edits update future defaults/bindings without changing an active mode/deadline.
-- **KA-17.** The native window-style popover places Keep Awake first, existing tiling/move-error controls below, and Settings, Check for Updates and Quit afterward. Controls have accessibility labels and native selectors; Settings activation and Command-comma/Command-Q are retained. Actual keyboard/VoiceOver acceptance remains pending M6.
+- **KA-17.** The native window-style popover places Keep Awake first, existing tiling/move-error controls below, and Settings, Check for Updates and Quit afterward. Controls have accessibility labels and native selectors; Settings activation and Command-comma/Command-Q are retained. Keyboard retest with macOS keyboard navigation enabled remains pending M6. VoiceOver testing was explicitly declined by the owner, not recorded as passed.
 
 ### Errors and limits
 
@@ -72,7 +72,7 @@ The rules below describe implemented branch behavior. Automated tests verify sta
 
 ## Known gaps and quirks
 
-- This branch is not yet accepted for shipping: actual idle/display timing, explicit sleep/lid/lock behavior, power changes and UI/accessibility require manual checks and reviewer acceptance. README feature boxes remain unchecked.
+- This branch is not yet accepted for shipping. Actual idle/display effects, wake after timed expiry, AX-denied/native error feedback, keyboard retest and light appearance still require acceptance. VoiceOver was skipped at owner request, not passed. Completed lock/sleep/lid/power/expiry/exit checks are recorded in the validation document; README feature boxes remain unchecked.
 - Assertion release failures retain unresolved IDs and surface a diagnostic. Cleanup makes at most two attempts per ID per command and can be retried; stopping clears session state but does not claim every request was removed if an error remains. OS process-exit cleanup is the final boundary.
 - Mode changes save the candidate before native completion, but publish preferences only after completion succeeds. If native completion fails, the previous file is restored. If that restoration also fails because the filesystem has become unavailable, runtime mode and in-memory preferences remain unchanged and both failures are reported; successful on-disk restoration cannot be claimed until the filesystem is repaired.
 - There is no custom duration, clock-time deadline, input simulation, power automation, focus timer or session restoration.

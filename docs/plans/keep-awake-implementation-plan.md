@@ -4,7 +4,7 @@
 > **Canonical proposal:** `docs/plans/keep-awake-feature-spec.md`, approved by João, changelog 2026-10-06, KA-01–KA-20. Repository-local feature; no Linear issue, blockers, due date or estimate supplied.
 > **Owner:** João · **Technical reviewer:** pending.
 > **Revision:** v2 — 2026-10-06. Implementation and automated quality gate complete; manual acceptance pending.
-> **Readiness:** D1–D8 remain approved. João explicitly authorized the normal profile instead of a disposable one. Native assertion probes, production-service/controller smoke and UI compilation passed; empirical sleep and interactive UI/accessibility checks remain open, blocking shipping claims. See `docs/qa/keep-awake-validation.md`.
+> **Readiness:** D1–D8 remain approved. João explicitly authorized the normal profile instead of a disposable one. Native assertion probes, production-service/controller smoke, empirical sleep-inclusive clock, lock/lid/power/expiry and app exit/relaunch checks passed. Remaining wake-after-expiry, idle-effect and UI acceptance gaps block shipping claims. See `docs/qa/keep-awake-validation.md`.
 
 ## Outcome
 
@@ -16,12 +16,12 @@ Commit-sized vertical changes, with tests alongside implementation (not necessar
 
 | Task | What | Suggested commit | Status |
 |---|---|---|---|
-| T1 | Verify native API/lifecycle and popover feasibility | `docs(keep-awake): record native feasibility checks` | Partial: native probes passed; empirical sleep/UI pending |
+| T1 | Verify native API/lifecycle and popover feasibility | `docs(keep-awake): record native feasibility checks` | Native API/clock/lifecycle passed; full UI acceptance pending |
 | T2 | Preferences/action schema and isolated ConfigStore seam | `feat(keep-awake): add persisted preferences` | [x] |
 | T3 | Transactional native assertion adapter | `feat(keep-awake): add power assertion adapter` | [x] |
 | T4 | Session state, deadlines and lifecycle | `feat(keep-awake): implement session lifecycle` | [x] |
 | T5 | App-level action/config routing independent of tiling | `refactor(hotkeys): separate application action routing` | [x] |
-| T6 | Native popover and dynamic menu-bar label | `feat(keep-awake): add menu bar controls` | Code/tests done; M6 pending |
+| T6 | Native popover and dynamic menu-bar label | `feat(keep-awake): add menu bar controls` | Code/tests done; bold Charged icon selected; M6 partial |
 | T7 | Full regression suite and manual OS/accessibility validation | `test(keep-awake): verify integration and OS behavior` | 93 tests passed after review fixes; manual matrix partial/pending |
 | T8 | Living behavior spec and README, gated by evidence | `docs(keep-awake): document verified behavior` | Draft docs done; shipping/sign-off pending |
 | — | Quality gate passed, review requested, PR opened after authorization | — | Quality passed; review offered; no PR authorized/opened |
@@ -331,4 +331,6 @@ Custom durations/clock-time deadlines; lid-close overrides; power-source automat
 - 2026-10-06 — Implemented T2–T6 and automated matrix; quality gate passed with 84 tests in 12 suites and no Swift warnings. Native assertion create/release/process-death probe and production-service/controller smoke passed with temporary configs and no real shortcut/tiling/updater side effects. Added explicit Carbon handler disposal in `HotKeyManager.swift` (one additional implementation file beyond the inventory) to avoid dangling registrations/callbacks. IOKit autolinking succeeded with no project/signing changes.
 - 2026-10-06 — Added draft branch behavior spec and README usage/configuration. Kept feature boxes unchecked and the canonical proposal approved/not shipped: empirical sleep, idle/display, native UI/keyboard/VoiceOver checks and technical sign-off are still pending. Independent review offered; no review artifact or PR created without authorization.
 - 2026-10-06 — User authorized review; requirements-based review saved at `docs/reviews/keep-awake-implementation-review.md` against `380cfae`. Two code defects reproduced: expired mode Retry started a new session (B1), and failed display release published a downgraded mode/default (B2). Manual acceptance was separately recorded as B3.
-- 2026-10-06 — User authorized fixes. Commits `f990a4c`/`7c24ce3` capture Retry intent across expiry and make downgrade completion throwing/ownership-preserving, with ConfigStore candidate write-before-native-completion and rollback-before-publication. Added red→green regression coverage; full quality gate now passes 93 tests and production native upgrade/downgrade/synthetic-lifecycle smoke passes. Historical review remains unchanged pending re-review; B3 manual acceptance remains open.
+- 2026-10-06 — User authorized fixes. Commits `f990a4c`/`7c24ce3` capture Retry intent across expiry and make downgrade completion throwing/ownership-preserving, with ConfigStore candidate write-before-native-completion and rollback-before-publication. Added red→green regression coverage; full quality gate now passes 93 tests and production native upgrade/downgrade/synthetic-lifecycle smoke passes. The subsequent re-review verified B1/B2 resolved with 93 passing tests; B3 manual acceptance remained open.
+- 2026-10-06 — User performed normal-profile lock, explicit Sleep, lid-close, timed/indefinite valid wake, power transitions and native Stop/extension/expiry checks. Actual Quit/SIGKILL/relaunch and a temporary native hotkey passed. Remaining cases are tracked in `docs/qa/keep-awake-validation.md`; VoiceOver was declined, not passed. Temporary QA shortcut was removed and original config restored exactly.
+- 2026-10-06 — User compared five active-icon concepts, then smaller/bolder Charged variants live, and selected the bolder lightning. Committed the final 18-point monochrome template in `594a0d9`; both native asset builds passed all 93 tests. Comparison prototypes are removed after capturing the decision. User authorized committing/pushing the feature branch and local app installation; no release/version/tag or PR operation is authorized by that request.
