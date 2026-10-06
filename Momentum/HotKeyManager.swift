@@ -1,7 +1,7 @@
 import Carbon.HIToolbox
 
 /// Registers system-wide hotkeys through Carbon's `RegisterEventHotKey`.
-final class HotKeyManager {
+final class HotKeyManager: HotKeyRegistration {
     var onAction: ((Action) -> Void)?
 
     private var hotKeyRefs: [EventHotKeyRef] = []
@@ -41,6 +41,13 @@ final class HotKeyManager {
         hotKeyRefs.forEach { UnregisterEventHotKey($0) }
         hotKeyRefs.removeAll()
         actions.removeAll()
+    }
+
+    func shutdown() {
+        unregisterAll()
+        onAction = nil
+        if let handlerRef { RemoveEventHandler(handlerRef) }
+        handlerRef = nil
     }
 
     fileprivate func handle(_ id: UInt32) {

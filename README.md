@@ -94,10 +94,12 @@ Update this checklist when implementation or validation changes a feature's stat
 
 ### Keep work uninterrupted
 
-- [ ] Keep Awake toggle accessible from the menu bar and a configurable shortcut.
-- [ ] Timed Keep Awake sessions or manual control until stopped.
-- [ ] Separate options to prevent system sleep and keep the display on.
-- [ ] Clear menu-bar indication when Keep Awake is active.
+- [x] Keep Awake toggle accessible from the menu bar and a configurable shortcut.
+- [x] Timed Keep Awake sessions or manual control until stopped.
+- [x] Separate options to prevent system sleep and keep the display on.
+- [x] Clear menu-bar indication when Keep Awake is active.
+
+Keep Awake has passed automated/native checks and owner-confirmed manual acceptance. VoiceOver testing was explicitly skipped by the owner; see the [validation record](docs/qa/keep-awake-validation.md) for evidence and OS limits.
 
 ### Stay focused
 
@@ -173,6 +175,14 @@ Change bindings in **Settings**. Shortcut keys refer to physical US-layout key p
 
 Desktop numbers follow Mission Control order, excluding fullscreen Spaces. Destinations must already exist on the main display. If a move fails, the existing layout stays intact and an error appears in the menu and Settings.
 
+## Keep Awake
+
+Open Momentum's menu-bar popover, choose **Duration** and **Mode**, then **Start**. Defaults are **30 minutes, system-only**; selections save without starting. Active timed sessions offer **+15/+30/+60 min**, added to the existing deadline, and a rounded-up minutes indicator. **Until stopped** has no countdown. **Stop** or the toggle ends the session; relaunch always starts inactive.
+
+System-only requests idle system-sleep protection while allowing display sleep. System-and-display requests both idle protections. Neither overrides explicit Sleep, lid close, locking or critical-battery safeguards. Keep Awake does not require Accessibility permission and works independently of tiling. Errors are inline with Retry; validation evidence and exceptions are documented above.
+
+Optionally bind **Toggle Keep Awake** in Settings; no shortcut is assigned by default. Full branch behavior and evidence limitations are in the [functional spec](docs/spec/keep-awake.md).
+
 ## Make it yours
 
 Start with **Settings** to adjust spacing, record shortcuts, choose floating apps, and control animations. Prefer a dotfile? The same configuration lives here:
@@ -192,6 +202,10 @@ The file is created automatically and reloaded when edited.
   "outerPadding": 8,
   "animationsEnabled": true,
   "ignoreReduceMotion": false,
+  "keepAwake": {
+    "duration": "30m",
+    "mode": "system"
+  },
   "floatingBundleIDs": [
     "com.apple.systempreferences"
   ],
@@ -201,7 +215,8 @@ The file is created automatically and reloaded when edited.
     "switch-to-desktop-1": "alt+1",
     "send-to-desktop-1": "alt+shift+1",
     "toggle-float": "alt+shift+space",
-    "retile": "alt+shift+r"
+    "retile": "alt+shift+r",
+    "toggle-keep-awake": null
   }
 }
 ```
@@ -210,6 +225,7 @@ The file is created automatically and reloaded when edited.
 - `floatingBundleIDs` excludes apps from tiling by bundle identifier. System Settings is excluded by default.
 - `animationsEnabled` toggles animated tiling. Reduce Motion is respected unless `ignoreReduceMotion` is enabled; that override affects Momentum only and does not change the system preference.
 - Binding modifiers are `ctrl`, `alt`, `shift`, and `cmd`. Set a binding to `null` to unbind it; omitted actions keep their defaults.
+- `keepAwake.duration` accepts `15m`, `30m`, `1h`, `2h`, `4h`, `8h`, or `until-stopped`; `keepAwake.mode` accepts `system` or `system-and-display`. Missing fields use first-use defaults; present nulls, wrong types or unknown values reject the reload. Runtime sessions/deadlines are never saved. Valid external edits affect future sessions, not an active mode/deadline.
 - Invalid JSON or invalid configuration values leave the previous configuration active. Errors are shown in Settings.
 
 </details>
@@ -240,7 +256,7 @@ xcodebuild -project Momentum.xcodeproj \
   test
 ```
 
-These commands use the project's signing settings; configure your development team in Xcode first if necessary. The app does not start tiling or checking for updates when hosting unit tests.
+These commands use the project's signing settings; configure your development team in Xcode first if necessary. When hosting unit tests, the app uses a temporary config and does not start tiling, the updater, global hotkeys, native power assertions or lifecycle listeners. Explicit unit tests inject fake power/clock/scheduling clients; the existing Carbon collision test registers and removes one test shortcut.
 
 </details>
 
@@ -249,7 +265,9 @@ These commands use the project's signing settings; configure your development te
 
 | Path | Purpose |
 | --- | --- |
-| `Momentum/MyApp.swift` | App entry point and menu bar controls |
+| `Momentum/MyApp.swift`, `Momentum/MenuBarContent.swift` | App composition and native menu-bar popover |
+| `Momentum/AppController.swift` | Application action/config routing and lifecycle |
+| `Momentum/KeepAwakeService.swift`, `Momentum/PowerAssertions.swift` | Keep Awake sessions and native idle-sleep assertions |
 | `Momentum/TilingManager.swift` | Window management and per-Desktop layouts |
 | `Momentum/BSPTree.swift` | BSP layout tree |
 | `Momentum/AXWindow.swift`, `Momentum/WindowObserver.swift` | Accessibility window control and observation |

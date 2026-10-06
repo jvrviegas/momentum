@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 struct SettingsView: View {
     @Bindable var configStore: ConfigStore
     let manager: TilingManager
+    let controller: AppController
 
     @State private var newBundleID = ""
     @State private var isPickingApps = false
@@ -12,7 +13,7 @@ struct SettingsView: View {
         Form {
             if !manager.isTrusted {
                 Section {
-                    Label("Grant Accessibility access in System Settings › Privacy & Security › Accessibility.",
+                    Label("Tiling requires Device Control and Data Access in System Settings › Privacy & Security. Keep Awake does not.",
                           systemImage: "exclamationmark.triangle")
                 }
             }
@@ -79,7 +80,7 @@ struct SettingsView: View {
                 ForEach(Action.allCases, id: \.self) { action in
                     LabeledContent(action.title) {
                         HStack {
-                            if manager.failedHotKeys.contains(action) {
+                            if controller.failedHotKeys.contains(action) {
                                 Image(systemName: "exclamationmark.triangle.fill")
                                     .foregroundStyle(.yellow)
                                     .help("This shortcut isn't active: an action above already uses it, or macOS refused it.")
