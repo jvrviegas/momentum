@@ -131,6 +131,12 @@ The owner confirmed the four remaining numbered groups were working: (1) idle/di
 - **VoiceOver remains skipped at the owner's explicit request.** Critical-battery exhaustion remains intentionally unperformed; OS idle-assertion safety contracts and earlier explicit sleep/lid evidence are the applicable protection boundary.
 - No additional code defect was found. Final approval must disclose the user-confirmed portions and these exceptions, rather than claim every check was independently observed.
 
+## Native switch update — 2026-10-06
+
+- Owner requested replacing only Keep Awake's checkbox presentation with a native on/off switch before merge/release. `Toggle` now explicitly uses `.toggleStyle(.switch)`; Tiling Enabled retains its checkbox styling, and Start/Stop/hotkey routing is unchanged.
+- Fresh full suite: 93 tests in 12 suites passed. Native production-view probe verified off → on → off → on through the actual switch control, with fake assertions/temp preferences and no normal-profile changes.
+- This is a presentation-only follow-up to approved session logic. Screenshot is retained locally at `/tmp/momentum-keep-awake-switch-native.png`; it is not committed because the capture included some surrounding desktop content.
+
 ## Manual procedure reference (completed or excepted as recorded above)
 
 1. Quit the installed Momentum before launching the development build normally (avoid duplicate tiling/hotkeys). Back up the normal config first if testing saved selections or bindings.

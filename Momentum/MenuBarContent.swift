@@ -88,6 +88,7 @@ struct MenuBarContent: View {
                 get: { keepAwake.isActive },
                 set: { _ in keepAwake.toggle() }
             ))
+            .toggleStyle(.switch)
             .font(.headline)
             .accessibilityValue(presentation.status)
             Text(presentation.status)
