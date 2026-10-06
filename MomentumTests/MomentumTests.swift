@@ -116,6 +116,49 @@ struct SpaceMoverTests {
         #expect(desktop2?.keyCode == 19 && desktop2?.flags == .maskControl)
         #expect(SpaceMover.desktopShortcut(10, symbolicHotKeys: nil) == nil)
     }
+
+    @Test func switchToTheShowingOrAMissingDesktopIsntChecked() async {
+        for target: SpaceID? in [1, nil] {
+            var sent = 0
+            var restarts = 0
+            await SpaceMover.switchTo(target, send: { sent += 1 }, restartDock: { restarts += 1; return true },
+                                      currentSpaces: { [1] }, wait: {})
+            #expect(sent == 1 && restarts == 0)
+        }
+    }
+
+    @Test func switchThatChangesASpaceDoesntRestartTheDock() async {
+        var spaces: Set<SpaceID> = [1]
+        var restarts = 0
+        await SpaceMover.switchTo(2, send: { spaces = [2] }, restartDock: { restarts += 1; return true },
+                                  currentSpaces: { spaces }, wait: {})
+        #expect(restarts == 0)
+    }
+
+    @Test func ignoredSwitchRestartsTheDockAndResendsUntilASpaceChanges() async {
+        var spaces: Set<SpaceID> = [1]
+        var dockRestarted = false
+        var sentAfterRestart = 0
+        await SpaceMover.switchTo(2, send: {
+            guard dockRestarted else { return }
+            // The relaunched Dock ignores the first resend, as if it were still starting.
+            sentAfterRestart += 1
+            if sentAfterRestart == 2 { spaces = [2] }
+        }, restartDock: { dockRestarted = true; return true }, currentSpaces: { spaces }, wait: {})
+        #expect(spaces == [2] && sentAfterRestart == 2)
+    }
+
+    @Test func ignoredSwitchIsntResentWithoutADockRestart() async {
+        var sent = 0
+        await SpaceMover.switchTo(2, send: { sent += 1 }, restartDock: { false }, currentSpaces: { [1] }, wait: {})
+        #expect(sent == 1)
+    }
+
+    @Test func switchStillIgnoredAfterADockRestartGivesUp() async {
+        var restarts = 0
+        await SpaceMover.switchTo(2, send: {}, restartDock: { restarts += 1; return true }, currentSpaces: { [1] }, wait: {})
+        #expect(restarts == 1)
+    }
 }
 
 @MainActor

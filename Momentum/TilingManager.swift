@@ -33,6 +33,8 @@ import QuartzCore
     @ObservationIgnored private var isTrackingDrag = false
     /// Set when the tracked drag resized the window rather than only moving it.
     @ObservationIgnored private var dragResized = false
+    /// Allows one Dock restart per launch or wake, so a misjudged switch can't keep restarting it.
+    @ObservationIgnored private var mayRestartDock = true
 
     init(configStore: ConfigStore) {
         self.configStore = configStore
@@ -48,6 +50,13 @@ import QuartzCore
         observer.onEvent = { [weak self] in self?.scheduleRefresh() }
         observer.onUserDrag = { [weak self] window, isResize in self?.trackDrag(of: window, isResize: isResize) }
         observer.start()
+        // The Dock can stop handling Desktop shortcuts after a wake. Screen changes aren't used: restarting the
+        // Dock changes the visible frame, which would allow another restart.
+        Task { [weak self] in
+            for await _ in NSWorkspace.shared.notificationCenter.notifications(named: NSWorkspace.didWakeNotification) {
+                self?.mayRestartDock = true
+            }
+        }
         refresh()
     }
 
@@ -259,7 +268,7 @@ import QuartzCore
         case .sendToDesktop(let number): sendToDesktop(number)
         case .switchToDesktop(let number):
             cancelAnimation()
-            Task { await SpaceMover.switchTo(desktop: number) }
+            Task { await SpaceMover.switchTo(desktop: number, restartDock: restartDockOnce) }
         // The other commands act on the layout, which isn't maintained while tiling is off.
         case _ where !isEnabled: break
         case .focus(let direction): focus(direction)
@@ -268,6 +277,12 @@ import QuartzCore
         case .retile: retile()
         case .toggleKeepAwake: break // Routed by AppController, never an AX action.
         }
+    }
+
+    private func restartDockOnce() async -> Bool {
+        guard mayRestartDock else { return false }
+        mayRestartDock = false
+        return await SpaceMover.restartDock()
     }
 
     private func focus(_ direction: Direction) {
