@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | **Area owner** | João |
-| **Last verified** | 2026-10-06: 84 automated tests, native assertion/controller smoke; interactive OS/UI checks pending |
+| **Last verified** | 2026-10-06: 93 automated tests, native assertion/controller smoke including downgrade; interactive OS/UI checks pending |
 
 ## Overview
 
@@ -52,7 +52,7 @@ The rules below describe implemented branch behavior. Automated tests verify sta
 ### Errors and limits
 
 - **KA-18.** When activation fails, the session stays inactive and the UI presents an inline error with Retry Start, never an optimistic active indicator or modal alert. A successful Retry clears the error. Wake-reacquisition failure ends the session; Retry Start begins the current remembered configuration.
-- **KA-19.** When acquiring an active mode's additions or saving its preferences fails, the previous working mode/deadline/default remain unchanged and the attempted mode is available through Retry mode change. Partial additions are rolled back.
+- **KA-19.** When acquiring an active mode's additions, saving its preferences, or releasing display protection on downgrade fails, the previous working mode/deadline/default remain unchanged and the attempted mode is available through Retry mode change. Partial additions are rolled back; a failed downgrade retains the display request as working protection rather than orphaned cleanup. If the session expires before Retry mode change executes, it ends without starting a replacement session.
 - **KA-20.** When JSON or present Keep Awake values are invalid, the entire reload fails, the previous valid config remains and Settings exposes the error. Missing preferences/fields default; explicit nulls, wrong types and unknown enum values do not.
 
 ## Permissions
@@ -74,6 +74,7 @@ The rules below describe implemented branch behavior. Automated tests verify sta
 
 - This branch is not yet accepted for shipping: actual idle/display timing, explicit sleep/lid/lock behavior, power changes and UI/accessibility require manual checks and reviewer acceptance. README feature boxes remain unchecked.
 - Assertion release failures retain unresolved IDs and surface a diagnostic. Cleanup makes at most two attempts per ID per command and can be retried; stopping clears session state but does not claim every request was removed if an error remains. OS process-exit cleanup is the final boundary.
+- Mode changes save the candidate before native completion, but publish preferences only after completion succeeds. If native completion fails, the previous file is restored. If that restoration also fails because the filesystem has become unavailable, runtime mode and in-memory preferences remain unchanged and both failures are reported; successful on-disk restoration cannot be claimed until the filesystem is repaired.
 - There is no custom duration, clock-time deadline, input simulation, power automation, focus timer or session restoration.
 - UI tests prove derived status/visibility/Retry choices, not keyboard focus or VoiceOver behavior.
 

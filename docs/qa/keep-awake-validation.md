@@ -57,6 +57,19 @@ Compiled the actual `Config`, `ConfigStore`, `PowerAssertions`, `KeepAwakeServic
 
 Temporary logs/probes are under `/tmp/momentum-keep-awake-*` and are not shipped. The installed Momentum process remained untouched.
 
+## Review fixes validation (2026-10-06)
+
+Code-review findings B1/B2 were addressed in commits `f990a4c` and `7c24ce3`; formal re-review is not yet performed. B3 (manual acceptance) remains open.
+
+- B1 regression was observed failing before the fix (10 assertions at exact/after deadline); it now passes. Active mode-change Retry no longer becomes Start on expiry. Before-deadline Retry still preserves the deadline; failed-Start/wake-failure Retry Start still works.
+- B2 regressions were observed failing before the fix (9 assertions). Failed display release now retains the working display ID/mode/deadline, restores previous saved preferences, emits no candidate config callback, and keeps Retry targeted at the attempted mode.
+- Added tests for unchanged externally edited defaults, successful downgrade Retry, Stop after failed downgrade, save failure before native release, low-level ownership, live watcher rollback, and double-failure file restoration diagnostics.
+- Fresh complete gate: **93 tests in 12 suites passed**, no Swift warnings. Result: `/tmp/momentum-keep-awake-fixes.GFe9ec/Tests.xcresult`; log: `/tmp/momentum-keep-awake-fixes-full.log`.
+- Focused persistence/power/session suites: **30 tests in 3 suites passed**. `git diff --check` passed.
+- The separately compiled fake-client review harness now observes expired Retry inactive with zero new requests, and failed downgrade retaining system-and-display mode/default plus both IDs. Successful Retry then removes display protection without deadline reset.
+- Recompiled production-service/controller native smoke (PID 54059): system ID `0x9462` remained during upgrade/downgrade; display ID `0x9463` disappeared after downgrade. Synthetic sleep/wake resumed the original extended deadline with new IDs `0x9465/0x9466`; expiry and termination left no Momentum Keep Awake requests. Log: `/tmp/momentum-keep-awake-fixes-smoke.log`.
+- As before, configs are temporary, no actual sleep/lid/lock is requested, no permanent power preferences change, and installed Momentum is untouched. This does not complete M1–M7 interactive acceptance.
+
 ## Remaining interactive procedure
 
 1. Quit the installed Momentum before launching the development build normally (avoid duplicate tiling/hotkeys). Back up the normal config first if testing saved selections or bindings.
