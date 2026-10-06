@@ -3,8 +3,8 @@
 > **Scope:** `jvrviegas/momentum`, native macOS app. One feature branch/worktree and PR to `main` (`daf18d874c9fc8cb876e9cf4a76afc8c80145b4d` at planning time).
 > **Canonical proposal:** `docs/plans/keep-awake-feature-spec.md`, approved by João, changelog 2026-10-06, KA-01–KA-20. Repository-local feature; no Linear issue, blockers, due date or estimate supplied.
 > **Owner:** João · **Technical reviewer:** pending.
-> **Revision:** v1 — 2026-10-06. Planning only; no application code changed or feature validation performed.
-> **Readiness:** ready to begin implementation; João approved D1–D8 on 2026-10-06. Complete T1 feasibility gate before production implementation. The approved product scope is unchanged.
+> **Revision:** v2 — 2026-10-06. Implementation and automated quality gate complete; manual acceptance pending.
+> **Readiness:** D1–D8 remain approved. João explicitly authorized the normal profile instead of a disposable one. Native assertion probes, production-service/controller smoke and UI compilation passed; empirical sleep and interactive UI/accessibility checks remain open, blocking shipping claims. See `docs/qa/keep-awake-validation.md`.
 
 ## Outcome
 
@@ -16,15 +16,15 @@ Commit-sized vertical changes, with tests alongside implementation (not necessar
 
 | Task | What | Suggested commit | Status |
 |---|---|---|---|
-| T1 | Verify native API/lifecycle and popover feasibility | `docs(keep-awake): record native feasibility checks` | [ ] |
-| T2 | Preferences/action schema and isolated ConfigStore seam | `feat(keep-awake): add persisted preferences` | [ ] |
-| T3 | Transactional native assertion adapter | `feat(keep-awake): add power assertion adapter` | [ ] |
-| T4 | Session state, deadlines and lifecycle | `feat(keep-awake): implement session lifecycle` | [ ] |
-| T5 | App-level action/config routing independent of tiling | `refactor(hotkeys): separate application action routing` | [ ] |
-| T6 | Native popover and dynamic menu-bar label | `feat(keep-awake): add menu bar controls` | [ ] |
-| T7 | Full regression suite and manual OS/accessibility validation | `test(keep-awake): verify integration and OS behavior` | [ ] |
-| T8 | Living behavior spec and README, gated by evidence | `docs(keep-awake): document verified behavior` | [ ] |
-| — | Quality gate passed, review requested, PR opened after authorization | — | [ ] |
+| T1 | Verify native API/lifecycle and popover feasibility | `docs(keep-awake): record native feasibility checks` | Partial: native probes passed; empirical sleep/UI pending |
+| T2 | Preferences/action schema and isolated ConfigStore seam | `feat(keep-awake): add persisted preferences` | [x] |
+| T3 | Transactional native assertion adapter | `feat(keep-awake): add power assertion adapter` | [x] |
+| T4 | Session state, deadlines and lifecycle | `feat(keep-awake): implement session lifecycle` | [x] |
+| T5 | App-level action/config routing independent of tiling | `refactor(hotkeys): separate application action routing` | [x] |
+| T6 | Native popover and dynamic menu-bar label | `feat(keep-awake): add menu bar controls` | Code/tests done; M6 pending |
+| T7 | Full regression suite and manual OS/accessibility validation | `test(keep-awake): verify integration and OS behavior` | 84 tests passed; manual matrix partial/pending |
+| T8 | Living behavior spec and README, gated by evidence | `docs(keep-awake): document verified behavior` | Draft docs done; shipping/sign-off pending |
+| — | Quality gate passed, review requested, PR opened after authorization | — | Quality passed; review offered; no PR authorized/opened |
 
 ## Decisions (approved by João 2026-10-06)
 
@@ -82,7 +82,7 @@ Planning verified these APIs against the installed Xcode 27 SDK, not against a l
 - Conventional Commits from `CONTRIBUTING.md:3`; history groups coherent implementation/tests across multiple files (e.g. `f6f642c`, `41cd556`). No fabricated issue IDs in comments. Swift Testing, `@MainActor` tests, Swift 6 and default app MainActor isolation (`project.pbxproj:365,369`).
 - Deployment target is macOS 27.0 (`project.pbxproj:264,414`); do not lower it or broaden compatibility here. New files in synchronized folders normally need no project edit; verify IOKit linking through a build before deciding otherwise.
 - No formatter/linter configuration was found; match surrounding Swift style and run build/tests plus `git diff --check`.
-- Unit tests must not read/write the real `~/.config/momentum/tiling.json` or create real power assertions. Manual checks run on a disposable local macOS user profile with a development build, not the normal user's running Momentum/config. Native test-host hotkey tests already register Carbon bindings: run the suite in that profile to avoid collisions with working shortcuts.
+- Unit tests must not read/write the real `~/.config/momentum/tiling.json` or create real power assertions. João authorized the normal profile; all automated tests/native smoke harnesses still use temporary configs and skip unrelated services. Do not disturb the installed Momentum or its shortcuts. Native Carbon collision regression uses an otherwise unassigned four-modifier F12 and cleans up its handler.
 
 ## Architecture and proposed interfaces
 
@@ -118,7 +118,7 @@ Native release errors must not be discarded: retain ownership of unreleased IDs 
 
 ### T1 — Native feasibility and test environment
 
-- [ ] In a disposable local macOS 27 profile, compile a temporary minimal IOKit probe and inspect `pmset -g assertions` for each requested type; do not change permanent energy preferences in the normal user profile.
+- [x] On the user-authorized normal macOS 27 profile, compile a temporary minimal IOKit probe and inspect `pmset -g assertions` for each requested type; do not change permanent energy preferences.
 - [ ] Confirm import/linking, ordinary-user privileges, create/release result handling, partial-acquisition rollback, Quit and forced process-death cleanup. Keep probe files in a temporary directory, not production code.
 - [ ] Verify the chosen clock advances during explicit sleep and confirm `.window` supports custom static image + countdown label, native selectors and keyboard focus.
 - [ ] Record machine/OS build/Xcode, commands, expected/observed results and unresolved limitations in `docs/qa/keep-awake-validation.md`. Failures block dependent tasks; do not check README boxes.
@@ -127,41 +127,41 @@ Native release errors must not be discarded: retain ownership of unreleased IDs 
 
 ### T2 — `Config.swift`, `ConfigStore.swift`, config tests
 
-- [ ] Add D1 enums/preferences and `Action.toggleKeepAwake` raw value/title/allCases; append action to keep existing collision order stable. Omit default binding; missing or explicit null stays unbound.
-- [ ] Implement strict nested preference decoding, with missing values defaulting and invalid present values failing the complete config reload. Preserve all old schema/defaults.
-- [ ] Allow injected ConfigStore file URL and watcher enablement; production defaults remain the existing path. Expose an internal reload seam for deterministic tests and a shutdown path cancelling watcher/task resources.
-- [ ] Implement D6 atomic candidate write-before-publish update for Keep Awake controls. Publish `onChange` once on success; failures set `lastError`, retain old config and do not emit changes. Leave existing direct config edits working.
-- [ ] Add config decode/action cases to `MomentumTests/MomentumTests.swift`; new `ConfigStoreTests.swift` uses unique temporary directories with cleanup and tests live/atomic reload separately from synchronous reload.
+- [x] Add D1 enums/preferences and `Action.toggleKeepAwake` raw value/title/allCases; append action to keep existing collision order stable. Omit default binding; missing or explicit null stays unbound.
+- [x] Implement strict nested preference decoding, with missing values defaulting and invalid present values failing the complete config reload. Preserve all old schema/defaults.
+- [x] Allow injected ConfigStore file URL and watcher enablement; production defaults remain the existing path. Expose an internal reload seam for deterministic tests and a shutdown path cancelling watcher/task resources.
+- [x] Implement D6 atomic candidate write-before-publish update for Keep Awake controls. Publish `onChange` once on success; failures set `lastError`, retain old config and do not emit changes. Leave existing direct config edits working.
+- [x] Add config decode/action cases to `MomentumTests/MomentumTests.swift`; new `ConfigStoreTests.swift` uses unique temporary directories with cleanup and tests live/atomic reload separately from synchronous reload.
 
 **Verify:** C1–C5 below; old config/animation tests pass; test fixtures contain no deadline, assertion ID, current state or active flag.
 
 ### T3 — `Momentum/PowerAssertions.swift` and tests (new)
 
-- [ ] Wrap public IOKit idle assertion creation/release with an injectable low-level client. System-plus-display acquisition is all-or-nothing; preserve old assertions during mode changes.
-- [ ] Track owned IDs exactly once; release on stop, rollback and shutdown. Do not release unrelated requests. Make same-mode changes idempotent.
-- [ ] Add `PowerAssertionTests.swift` with failure injection on first/second creation, transactional replacement, release-call counting and cleanup retry handling; production results match the T1 evidence.
+- [x] Wrap public IOKit idle assertion creation/release with an injectable low-level client. System-plus-display acquisition is all-or-nothing; preserve old assertions during mode changes.
+- [x] Track owned IDs exactly once; release on stop, rollback and shutdown. Do not release unrelated requests. Make same-mode changes idempotent.
+- [x] Add `PowerAssertionTests.swift` with failure injection on first/second creation, transactional replacement, release-call counting and cleanup retry handling; production results match the T1 evidence.
 
 **Verify:** P1–P4; build links without changing signing, entitlements or deployment target. No activity declarations, synthetic input or private power APIs.
 
 ### T4 — `Momentum/KeepAwakeService.swift` and tests (new)
 
-- [ ] Implement explicit runtime transitions and commands above; fake clock and scheduler make expiry deterministic. A new instance is always inactive, irrespective of preferences.
-- [ ] Use sleep-inclusive clock, cancellable scheduled expiry/countdown and observer updates even with popover closed. One scheduling owner; no accumulating timers or retain cycles. Countdown is derived from deadline, never decremented per tick.
-- [ ] Reevaluate expiry before start/stop/toggle/extend/mode changes and wake; stop/restart cancels stale scheduled callbacks using session identity/generation.
-- [ ] Implement D6 active-mode transaction with ConfigStore; inactive selectors save without starting. Extensions never save duration.
-- [ ] Implement sleep suspension/wake reconciliation and termination cleanup; errors are inline state, cleared by a successful retry/action, never alerts or normal-expiry notifications.
-- [ ] Add `KeepAwakeServiceTests.swift` for S1–S9, including native/save failures, deadline boundaries and reentrancy/stale callbacks.
+- [x] Implement explicit runtime transitions and commands above; fake clock and scheduler make expiry deterministic. A new instance is always inactive, irrespective of preferences.
+- [x] Use sleep-inclusive clock, cancellable scheduled expiry/countdown and observer updates even with popover closed. One scheduling owner; no accumulating timers or retain cycles. Countdown is derived from deadline, never decremented per tick.
+- [x] Reevaluate expiry before start/stop/toggle/extend/mode changes and wake; stop/restart cancels stale scheduled callbacks using session identity/generation.
+- [x] Implement D6 active-mode transaction with ConfigStore; inactive selectors save without starting. Extensions never save duration.
+- [x] Implement sleep suspension/wake reconciliation and termination cleanup; errors are inline state, cleared by a successful retry/action, never alerts or normal-expiry notifications.
+- [x] Add `KeepAwakeServiceTests.swift` for S1–S9, including native/save failures, deadline boundaries and reentrancy/stale callbacks.
 
 **Verify:** fake-adapter assertions and runtime state agree in every transition; timers and requests are absent after stop/expiry/shutdown; no runtime state is encoded.
 
 ### T5 — `AppController.swift` (new), TilingManager/MyApp/Settings wiring
 
-- [ ] Move `HotKeyManager` ownership, failed hotkeys, registration and ConfigStore callback from TilingManager to AppController. It alone owns `onChange`; removing tiling startup ownership must not suppress future refreshes.
-- [ ] Expose narrowly scoped tiling `perform(_:)` and `configurationDidChange()`; retain existing AX/enabled/suspension guards. Exhaustively handle `.toggleKeepAwake` as an app action before delegation; TilingManager defensively ignores it.
-- [ ] Register app-level bindings without waiting for Accessibility. Start the existing tiling permission lifecycle separately. Keep Awake does not depend on trust, `isEnabled` or `isSuspended`.
-- [ ] Move Settings failed-binding feedback to AppController; preserve existing `HotKeyRecorder`, enumeration, collision order, null unbinding and refusal messages. Explain Accessibility is for tiling only.
-- [ ] Hook NSWorkspace `willSleepNotification`/`didWakeNotification` and app termination on MainActor; tear down notification tokens/registrations and service scheduler. Do not add power/lock automation.
-- [ ] For XCTest use a temporary ConfigStore and skip controller start/native listeners/AX/updater. Add injected registration/tiling dispatch seams and `AppControllerTests.swift`; do not make tests call the real permission loop.
+- [x] Move `HotKeyManager` ownership, failed hotkeys, registration and ConfigStore callback from TilingManager to AppController. It alone owns `onChange`; removing tiling startup ownership must not suppress future refreshes.
+- [x] Expose narrowly scoped tiling `perform(_:)` and `configurationDidChange()`; retain existing AX/enabled/suspension guards. Exhaustively handle `.toggleKeepAwake` as an app action before delegation; TilingManager defensively ignores it.
+- [x] Register app-level bindings without waiting for Accessibility. Start the existing tiling permission lifecycle separately. Keep Awake does not depend on trust, `isEnabled` or `isSuspended`.
+- [x] Move Settings failed-binding feedback to AppController; preserve existing `HotKeyRecorder`, enumeration, collision order, null unbinding and refusal messages. Explain Accessibility is for tiling only.
+- [x] Hook NSWorkspace `willSleepNotification`/`didWakeNotification` and app termination on MainActor; tear down notification tokens/registrations and service scheduler. Do not add power/lock automation.
+- [x] For XCTest use a temporary ConfigStore and skip controller start/native listeners/AX/updater. Add injected registration/tiling dispatch seams and `AppControllerTests.swift`; do not make tests call the real permission loop.
 
 **Verify:** A1–A4; Keep Awake works before AX trust and with tiling disabled/suspended; config edits notify both routing and tiling refresh, without resetting active sessions.
 
@@ -180,7 +180,7 @@ Native release errors must not be discarded: retain ownership of unreleased IDs 
 ### T7 — Regression and manual matrix
 
 - [ ] Complete automatic case matrix below, including failure/refusal cases; run the entire existing suite, not just new files.
-- [ ] Execute M1–M7 in the disposable macOS profile, with only one development Momentum process; capture assertion IDs/types, screenshots and observed timing in the validation document.
+- [ ] Execute M1–M7 in the authorized normal macOS profile, with only one development Momentum process; capture assertion IDs/types, screenshots and observed timing in the validation document.
 - [ ] Explicitly record critical-battery test as not performed if unsafe; never deliberately drain hardware to unsafe levels. API limitation evidence and human reviewer acceptance are required, not a fabricated runtime pass.
 - [ ] Fix only feature-related failures. Report unrelated regressions separately; do not change native Desktop moves or tiling behavior as cleanup.
 
@@ -228,7 +228,7 @@ Cases belong to the test file named in the corresponding task; use fake adapters
 
 ## Manual OS and accessibility matrix
 
-Record OS/hardware, power source, build SHA, steps, expected vs actual and evidence under `docs/qa/keep-awake-validation.md`. Use the disposable profile/config. Safely restore any test-only sleep preference changes afterward. Do not use `pmset sleepnow` until ready to interrupt the test machine; no shared environments or external APIs.
+Record OS/hardware, power source, build SHA, steps, expected vs actual and evidence under `docs/qa/keep-awake-validation.md`. Use the authorized normal profile; isolate automated configs and back up normal preferences before interactive edits. Safely restore any test-only sleep preference changes afterward. Do not use `pmset sleepnow` until ready to interrupt the test machine; no shared environments or external APIs.
 
 | Case | Procedure / expected evidence | Criteria |
 |---|---|---|
@@ -269,7 +269,7 @@ The canonical wording remains in the feature spec; these mappings cover every nu
 
 ## Quality gate
 
-Run from the implementation worktree in the disposable macOS profile. Unique outputs avoid modifying repository build artifacts. Signing uses existing project settings and may require a locally configured development team; do not commit personal signing changes. Xcode 27/macOS 27 required by the existing target.
+Run from the implementation worktree in the authorized normal macOS profile with the isolated XCTest host. Unique outputs avoid modifying repository build artifacts. Signing uses existing project settings and may require a locally configured development team; do not commit personal signing changes. Xcode 27/macOS 27 required by the existing target.
 
 ```bash
 set -e

@@ -233,6 +233,66 @@ struct KeepAwakeServiceTests {
         #expect(f.service.deadline == f.time + 900)
     }
 
+    @Test func preferenceCallbackCannotReenterNativeTransaction() {
+        let f = KeepAwakeFixture()
+        defer { f.cleanup() }
+        f.service.start()
+        let deadline = f.service.deadline
+        f.config.store.onChange = { _ in
+            f.service.stop()
+            f.service.start()
+            f.service.toggle()
+            f.service.extend(by: 900)
+            f.service.changeMode(.system)
+        }
+        f.service.changeMode(.systemAndDisplay)
+        #expect(f.service.mode == .systemAndDisplay)
+        #expect(f.service.deadline == deadline)
+        #expect(f.client.live == [1, 2])
+        #expect(f.config.store.config.keepAwake.mode == .systemAndDisplay)
+    }
+
+    @Test func stopReportsUnreleasedIDsAndSubsequentCleanupRetainsOwnership() {
+        let f = KeepAwakeFixture()
+        defer { f.cleanup() }
+        f.service.start()
+        f.client.releaseFailures = 3
+        f.service.stop()
+        #expect(!f.service.isActive)
+        #expect(f.service.error != nil)
+        #expect(f.client.live == [1])
+        #expect(f.client.releases.count == 2)
+        f.service.stop()
+        #expect(f.client.live.isEmpty)
+        #expect(f.service.error == nil)
+    }
+
+    @Test func realSchedulerCancelsWithoutNativeRequests() async throws {
+        let config = TemporaryConfig()
+        defer { config.cleanup() }
+        let client = FakePowerClient()
+        let service = KeepAwakeService(store: config.store, assertions: PowerAssertions(client: client), now: { 0 })
+        defer { service.shutdown() }
+        service.start()
+        // The real scheduled countdown fires after at most one minute, but stop must cancel it now.
+        service.stop()
+        try await Task.sleep(for: .milliseconds(20))
+        #expect(!service.isActive)
+        #expect(client.live.isEmpty)
+        #expect(client.creates.count == 1)
+    }
+
+    @Test func realSchedulerRunsOnlyUncancelledCallback() async throws {
+        let scheduler = TaskKeepAwakeScheduler()
+        var calls = 0
+        let cancelOld = scheduler.schedule(after: 0.01) { calls += 100 }
+        cancelOld()
+        let cancelNew = scheduler.schedule(after: 0.01) { calls += 1 }
+        defer { cancelNew() }
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(calls == 1)
+    }
+
     @Test func expiredModeCommandDoesNotChangeDefaultsAndSuspendedToggleStops() {
         let f = KeepAwakeFixture()
         defer { f.cleanup() }

@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 @testable import Momentum
@@ -60,6 +61,32 @@ struct AppControllerTests {
         #expect(!f.service.isActive)
     }
 
+    @Test func lifecycleNotificationsResumeAndTerminationDisposesListeners() {
+        let f = KeepAwakeFixture()
+        defer { f.cleanup() }
+        let hotKeys = FakeHotKeys()
+        let controller = AppController(store: f.config.store, keepAwake: f.service, hotKeys: hotKeys,
+            performTiling: { _ in }, refreshTiling: {})
+        controller.start()
+        controller.perform(.toggleKeepAwake)
+        let deadline = f.service.deadline
+        let center = NSWorkspace.shared.notificationCenter
+        center.post(name: NSWorkspace.willSleepNotification, object: nil)
+        #expect(f.service.isSuspended)
+        #expect(f.client.live.isEmpty)
+        f.time += 30
+        center.post(name: NSWorkspace.didWakeNotification, object: nil)
+        #expect(f.service.isActive && !f.service.isSuspended)
+        #expect(f.service.deadline == deadline)
+        NotificationCenter.default.post(name: NSApplication.willTerminateNotification, object: nil)
+        #expect(hotKeys.shutdownCount == 1)
+        #expect(f.client.live.isEmpty)
+        let creates = f.client.creates.count
+        center.post(name: NSWorkspace.didWakeNotification, object: nil)
+        #expect(f.client.creates.count == creates)
+        #expect(f.config.store.onChange == nil)
+    }
+
     @Test func constructionDoesNotRegisterOrStartAndHostConfigIsTemporary() {
         let store = AppEnvironment.makeConfigStore(testing: true)
         defer {
@@ -76,6 +103,34 @@ struct AppControllerTests {
         #expect(client.creates.isEmpty)
         #expect(store.onChange == nil)
         controller.shutdown()
+    }
+
+    @Test func liveAtomicEditFansOutWithoutChangingActiveSession() async throws {
+        let fixture = TemporaryConfig(watching: true)
+        defer { fixture.cleanup() }
+        let client = FakePowerClient()
+        let service = KeepAwakeService(store: fixture.store, assertions: PowerAssertions(client: client))
+        let keys = FakeHotKeys()
+        var refreshes = 0
+        let controller = AppController(store: fixture.store, keepAwake: service, hotKeys: keys,
+            performTiling: { _ in }, refreshTiling: { refreshes += 1 })
+        controller.start(listening: false)
+        defer { controller.shutdown() }
+        service.start()
+        let deadline = service.deadline
+        try Data(#"{"keepAwake":{"duration":"8h","mode":"system-and-display"},"bindings":{"toggle-keep-awake":"ctrl+alt+a"}}"#.utf8)
+            .write(to: fixture.store.location, options: .atomic)
+        for _ in 0..<50 {
+            if refreshes > 0 { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(refreshes == 1)
+        #expect(keys.registrations.count == 2)
+        #expect(service.mode == .system)
+        #expect(service.deadline == deadline)
+        #expect(client.creates == [.system])
+        #expect(fixture.store.config.keepAwake.mode == .systemAndDisplay)
+        #expect(keys.registrations.last?[.toggleKeepAwake] == KeyCombo(string: "ctrl+alt+a"))
     }
 
     @Test func untrustedDisabledTilingRetainsExistingGuards() {

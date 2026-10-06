@@ -41,6 +41,7 @@ struct TaskKeepAwakeScheduler: KeepAwakeScheduler {
     @ObservationIgnored private var cancelScheduled: (() -> Void)?
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var isShutdown = false
+    @ObservationIgnored private var isSavingPreference = false
 
     init(store: ConfigStore, assertions: PowerAssertions = PowerAssertions(),
          now: @escaping @MainActor () -> Double = KeepAwakeClock.now,
@@ -63,6 +64,7 @@ struct TaskKeepAwakeScheduler: KeepAwakeScheduler {
     }
 
     func start() {
+        guard !isSavingPreference else { return }
         reevaluate()
         guard !isShutdown, !isActive else { return }
         do {
@@ -82,11 +84,13 @@ struct TaskKeepAwakeScheduler: KeepAwakeScheduler {
     }
 
     func toggle() {
+        guard !isSavingPreference else { return }
         reevaluate()
         if isActive { stop() } else { start() }
     }
 
     func stop() {
+        guard !isSavingPreference else { return }
         cancelTimer()
         assertions.releaseAll()
         mode = nil
@@ -97,6 +101,7 @@ struct TaskKeepAwakeScheduler: KeepAwakeScheduler {
     }
 
     func extend(by seconds: Double) {
+        guard !isSavingPreference else { return }
         reevaluate()
         guard !isShutdown, isActive, let deadline, [900.0, 1800.0, 3600.0].contains(seconds) else { return }
         self.deadline = deadline + seconds
@@ -105,8 +110,11 @@ struct TaskKeepAwakeScheduler: KeepAwakeScheduler {
     }
 
     func selectDuration(_ duration: KeepAwakeDuration) {
+        guard !isSavingPreference else { return }
         reevaluate()
         guard !isShutdown, !isActive else { return }
+        isSavingPreference = true
+        defer { isSavingPreference = false }
         var preferences = store.config.keepAwake
         preferences.duration = duration
         do {
@@ -116,12 +124,15 @@ struct TaskKeepAwakeScheduler: KeepAwakeScheduler {
     }
 
     func changeMode(_ newMode: KeepAwakeMode) {
+        guard !isSavingPreference else { return }
         let wasActive = isActive
         reevaluate()
         guard !isShutdown else { return }
         // An expired command must not revive or change the just-ended session.
         guard !wasActive || isActive else { return }
         if isActive, mode == newMode { return }
+        isSavingPreference = true
+        defer { isSavingPreference = false }
         var preferences = store.config.keepAwake
         preferences.mode = newMode
         do {
@@ -143,6 +154,7 @@ struct TaskKeepAwakeScheduler: KeepAwakeScheduler {
     }
 
     func retry() {
+        guard !isSavingPreference else { return }
         reevaluate()
         if let retryMode, isActive { changeMode(retryMode) }
         else if !isActive { start() }
@@ -153,6 +165,7 @@ struct TaskKeepAwakeScheduler: KeepAwakeScheduler {
     }
 
     func willSleep() {
+        guard !isSavingPreference else { return }
         reevaluate()
         guard isActive else { return }
         assertions.releaseAll()
@@ -162,6 +175,7 @@ struct TaskKeepAwakeScheduler: KeepAwakeScheduler {
     }
 
     func didWake() {
+        guard !isSavingPreference else { return }
         reevaluate()
         guard !isShutdown, isActive, isSuspended, let mode else { return }
         do {
@@ -177,6 +191,7 @@ struct TaskKeepAwakeScheduler: KeepAwakeScheduler {
     }
 
     func shutdown() {
+        guard !isSavingPreference else { return }
         isShutdown = true
         stop()
     }

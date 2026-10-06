@@ -35,6 +35,7 @@ final class FakePowerClient: PowerAssertionClient {
 struct PowerAssertionTests {
     @Test func modesAreTransactionalAndStopIsIdempotent() throws {
         let client = FakePowerClient()
+        client.live.insert(99) // An unrelated request must never be released.
         let owner = PowerAssertions(client: client)
         owner.commit(try owner.prepare(.system), mode: .system)
         #expect(client.creates == [.system])
@@ -42,12 +43,12 @@ struct PowerAssertionTests {
         client.failCreateAt = 2
         #expect(throws: PowerAssertionError.self) { try owner.prepare(.systemAndDisplay) }
         #expect(owner.owned == old)
-        #expect(client.live == [1])
+        #expect(client.live == [1, 99])
         client.failCreateAt = nil
         let additions = try owner.prepare(.systemAndDisplay)
         #expect(owner.owned == old)
         owner.commit(additions, mode: .systemAndDisplay)
-        #expect(client.live == [1, 3])
+        #expect(client.live == [1, 3, 99])
         owner.commit(try owner.prepare(.systemAndDisplay), mode: .systemAndDisplay)
         #expect(client.creates.count == 3)
         owner.commit(try owner.prepare(.system), mode: .system)
@@ -55,7 +56,7 @@ struct PowerAssertionTests {
         owner.releaseAll()
         owner.releaseAll()
         #expect(client.releases == [3, 1])
-        #expect(client.live.isEmpty)
+        #expect(client.live == [99])
     }
 
     @Test func failedFirstOrSecondCreationRollsBack() {
