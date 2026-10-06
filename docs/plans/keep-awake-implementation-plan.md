@@ -179,7 +179,7 @@ Native release errors must not be discarded: retain ownership of unreleased IDs 
 
 ### T7 — Regression and manual matrix
 
-- [ ] Complete automatic case matrix below, including failure/refusal cases; run the entire existing suite, not just new files.
+- [x] Complete automatic case matrix below, including failure/refusal cases; run the entire existing suite, not just new files.
 - [ ] Execute M1–M7 in the authorized normal macOS profile, with only one development Momentum process; capture assertion IDs/types, screenshots and observed timing in the validation document.
 - [ ] Explicitly record critical-battery test as not performed if unsafe; never deliberately drain hardware to unsafe levels. API limitation evidence and human reviewer acceptance are required, not a fabricated runtime pass.
 - [ ] Fix only feature-related failures. Report unrelated regressions separately; do not change native Desktop moves or tiling behavior as cleanup.
@@ -327,3 +327,6 @@ Custom durations/clock-time deadlines; lid-close overrides; power-source automat
 
 - 2026-10-06 — plan written against fetched `origin/main` `daf18d8`; approved local spec read in full. Native SDK signatures checked, but no live OS tests or app implementation performed. GitHub account restored and verified as `joao-viegas-procimo`. Decisions were awaiting approval at initial handoff.
 - 2026-10-06 — João confirmed agreement with all decisions D1–D8 in chat. Plan ready to begin at T1; native feasibility and OS validation remain unperformed. No application code changed.
+- 2026-10-06 — João authorized his normal profile. Created `feat/keep-awake` in `../.worktrees/keep-awake` from local `main` at `daf18d8`; deliberately copied the untracked planning artifacts without modifying their originals. No origin operation was needed.
+- 2026-10-06 — Implemented T2–T6 and automated matrix; quality gate passed with 84 tests in 12 suites and no Swift warnings. Native assertion create/release/process-death probe and production-service/controller smoke passed with temporary configs and no real shortcut/tiling/updater side effects. Added explicit Carbon handler disposal in `HotKeyManager.swift` (one additional implementation file beyond the inventory) to avoid dangling registrations/callbacks. IOKit autolinking succeeded with no project/signing changes.
+- 2026-10-06 — Added draft branch behavior spec and README usage/configuration. Kept feature boxes unchecked and the canonical proposal approved/not shipped: empirical sleep, idle/display, native UI/keyboard/VoiceOver checks and technical sign-off are still pending. Independent review offered; no review artifact or PR created without authorization.
