@@ -2,6 +2,30 @@
 
 Notable changes to Momentum are documented here. Versions follow Semantic Versioning; `0.x` releases are early-stage and may change before stabilization.
 
+## [0.3.0] - 2026-10-06
+
+Source-only prerelease; a Developer ID-signed, notarized installer is not yet available.
+
+### Added
+
+- Keep Awake sessions with system-only or system-and-display idle-sleep protection, independent of tiling and its permissions.
+- Remembered durations from 15 minutes to 8 hours or Until stopped, with +15/+30/+60 minute extensions and silent timed expiry. Elapsed sleep counts toward deadlines; relaunch always starts inactive.
+- A bold Charged menu-bar icon with a rounded-up minutes indicator, plus an optional configurable Toggle Keep Awake shortcut.
+
+### Changed
+
+- The menu bar now opens a compact native popover with an on/off Keep Awake switch, mode/duration controls, inline errors and Retry. Existing tiling, Settings, update and Quit controls remain available.
+
+### Fixed
+
+- Permission guidance now uses macOS 27's Device Control and Data Access pane name.
+
+### Compatibility
+
+- Keep Awake uses public idle-sleep assertions and does not override explicit Sleep, lid-close, locking or critical-battery protections.
+- Validation includes 93 automated tests, native lifecycle/error-UI checks and owner-confirmed manual checks. VoiceOver testing was explicitly skipped by the owner; unsafe battery exhaustion was not performed.
+- Existing unsupported native Desktop-move/SIP limitations remain unchanged.
+
 ## [0.2.0] - 2026-10-06
 
 Source-only prerelease; a Developer ID-signed, notarized installer is not yet available.
