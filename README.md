@@ -175,6 +175,8 @@ Change bindings in **Settings**. Shortcut keys refer to physical US-layout key p
 
 Desktop numbers follow Mission Control order, excluding fullscreen Spaces. Destinations must already exist on the main display. If a move fails, the existing layout stays intact and an error appears in the menu and Settings.
 
+After waking from sleep, the macOS Dock can stop responding to the “Switch to Desktop N” shortcuts. When a switch is ignored, Momentum restarts the Dock once per wake, as `killall Dock` does, and switches again.
+
 ## Keep Awake
 
 Open Momentum's menu-bar popover, choose **Duration** and **Mode**, then **Start**. Defaults are **30 minutes, system-only**; selections save without starting. Active timed sessions offer **+15/+30/+60 min**, added to the existing deadline, and a rounded-up minutes indicator. **Until stopped** has no countdown. **Stop** or the toggle ends the session; relaunch always starts inactive.

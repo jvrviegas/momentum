@@ -18,6 +18,12 @@ enum Spaces {
         return CGSGetActiveSpace(connection)
     }
 
+    /// The Space currently shown on each display.
+    static var currentSpaces: Set<SpaceID> {
+        let managed = MomentumCopyManagedDisplaySpaces(CGSMainConnectionID()) as? [[String: Any]] ?? []
+        return Set(managed.compactMap { (($0["Current Space"] as? [String: Any])?["id64"] as? NSNumber)?.uint64Value })
+    }
+
     /// Desktop numbers follow Mission Control order, excluding fullscreen Spaces.
     static func desktopSpace(_ number: Int) -> SpaceID? {
         guard let managed = MomentumCopyManagedDisplaySpaces(CGSMainConnectionID()) as? [[String: Any]] else { return nil }

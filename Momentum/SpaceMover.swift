@@ -1,5 +1,4 @@
-import CoreGraphics
-import Foundation
+import AppKit
 
 /// Sends windows directly through SkyLight; only Desktop switching uses system shortcuts.
 enum SpaceMover {
@@ -51,11 +50,60 @@ enum SpaceMover {
     }
 
     /// Switches to Desktop `number` by triggering the system "Switch to Desktop N" shortcut.
-    static func switchTo(desktop number: Int) async {
+    /// After waking with the lid closed, displays reconfigure and the Dock can ignore these shortcuts until it
+    /// restarts. If the switch doesn't happen, `restartDock` is called and the shortcut is sent again.
+    static func switchTo(desktop number: Int, restartDock: () async -> Bool) async {
         guard let shortcut = desktopShortcut(number) else { return }
         // A private event source isn't combined with the keys the user is still holding,
         // so this can fire immediately without waiting for the hotkey's modifiers to be released.
-        post(shortcut, source: CGEventSource(stateID: .privateState))
+        let source = CGEventSource(stateID: .privateState)
+        await switchTo(Spaces.desktopSpace(number), send: { post(shortcut, source: source) }, restartDock: restartDock)
+    }
+
+    /// Dependencies allow tests without switching real Desktops.
+    static func switchTo(
+        _ target: SpaceID?,
+        send: () -> Void,
+        restartDock: () async -> Bool,
+        currentSpaces: () -> Set<SpaceID> = { Spaces.currentSpaces },
+        wait: () async -> Void = { try? await Task.sleep(for: .milliseconds(50)) }
+    ) async {
+        let before = currentSpaces()
+        send()
+        // Only a Desktop that exists and isn't showing yet can show that the shortcut was ignored.
+        guard let target, !before.contains(target) else { return }
+        // Any display's Space changing counts, since Mission Control may number Desktops across displays.
+        func spacesChange(within polls: Int) async -> Bool {
+            for _ in 0..<polls {
+                await wait()
+                if currentSpaces() != before { return true }
+            }
+            return false
+        }
+        if await spacesChange(within: 20) { return }
+        guard await restartDock() else { return }
+        // The relaunched Dock may not handle shortcuts right away, so resend until a Space changes.
+        for _ in 0..<6 {
+            send()
+            if await spacesChange(within: 10) { return }
+        }
+    }
+
+    /// Quits the Dock, as `killall Dock` does, and waits until launchd's relaunch has finished launching.
+    static func restartDock() async -> Bool {
+        let bundleID = "com.apple.dock"
+        guard let old = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first?.processIdentifier,
+              kill(old, SIGTERM) == 0 else { return false }
+        for _ in 0..<100 {
+            try? await Task.sleep(for: .milliseconds(50))
+            if NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+                .contains(where: { $0.processIdentifier != old && $0.isFinishedLaunching }) {
+                // It can report this before loading Desktops, which took up to ~350 ms when measured.
+                try? await Task.sleep(for: .milliseconds(500))
+                return true
+            }
+        }
+        return false
     }
 
     /// The user's "Switch to Desktop `number`" shortcut, or nil if it's turned off. When the user has never
