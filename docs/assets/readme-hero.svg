@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="680" viewBox="0 0 1280 680" role="img" aria-labelledby="title desc">
+  <title id="title">Momentum. Make room for focus.</title>
+  <desc id="desc">A conceptual illustration of a tiled desktop, with an editor beside a browser and terminal. Not an application screenshot.</desc>
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#101522"/><stop offset="1" stop-color="#080b12"/></linearGradient>
+    <radialGradient id="glow"><stop stop-color="#7765ef" stop-opacity=".25"/><stop offset="1" stop-color="#7765ef" stop-opacity="0"/></radialGradient>
+    <linearGradient id="accent" x2="1" y2="1"><stop stop-color="#b7a7ff"/><stop offset="1" stop-color="#7765ef"/></linearGradient>
+    <clipPath id="desktop"><rect x="216" y="252" width="848" height="344" rx="14"/></clipPath>
+  </defs>
+  <rect width="1280" height="680" rx="24" fill="url(#bg)"/>
+  <ellipse cx="640" cy="365" rx="620" ry="390" fill="url(#glow)"/>
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" text-anchor="middle">
+    <text x="640" y="65" fill="#b7a7ff" font-size="13" font-weight="600" letter-spacing="5">M O M E N T U M</text>
+    <text x="640" y="128" fill="#f5f3ff" font-size="52" font-weight="700" letter-spacing="-2">Make room for focus.</text>
+    <text x="640" y="166" fill="#a2a7b9" font-size="19">Your windows, in place. Your hands, on the keyboard.</text>
+  </g>
+  <rect x="204" y="208" width="872" height="400" rx="20" fill="#0e121e" stroke="#363248"/>
+  <path d="M224 208h832q20 0 20 20v16H204v-16q0-20 20-20" fill="#1a1c2c"/>
+  <g fill="#7d8198"><circle cx="226" cy="226" r="4"/><circle cx="242" cy="226" r="4"/><circle cx="258" cy="226" r="4"/></g>
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="11">
+    <text x="284" y="230" fill="#d3d1e5" font-weight="600">Desktop 1</text>
+    <text x="995" y="230" fill="#b7a7ff">Momentum</text>
+  </g>
+  <g clip-path="url(#desktop)">
+    <rect x="216" y="252" width="502" height="344" rx="10" fill="#191b2b" stroke="#9180ec" stroke-width="2"/>
+    <path d="M226 252h482q10 0 10 10v26H216v-26q0-10 10-10" fill="#252539"/>
+    <rect x="728" y="252" width="336" height="174" rx="10" fill="#191b2b" stroke="#35364b"/>
+    <path d="M738 252h316q10 0 10 10v26H728v-26q0-10 10-10" fill="#222435"/>
+    <rect x="728" y="436" width="336" height="160" rx="10" fill="#151824" stroke="#35364b"/>
+    <path d="M738 436h316q10 0 10 10v26H728v-26q0-10 10-10" fill="#222435"/>
+    <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="11" fill="#b1b1c9">
+      <text x="238" y="275">Editor</text><text x="749" y="275">Browser</text><text x="749" y="459">Terminal</text>
+    </g>
+    <rect x="216" y="288" width="110" height="308" fill="#161827"/>
+    <g fill="#36394f"><rect x="234" y="309" width="70" height="5" rx="2"/><rect x="244" y="328" width="53" height="5" rx="2"/><rect x="244" y="347" width="61" height="5" rx="2"/><rect x="244" y="366" width="44" height="5" rx="2"/><rect x="234" y="401" width="64" height="5" rx="2"/></g>
+    <g font-family="'SFMono-Regular', Consolas, monospace" font-size="12">
+      <text x="350" y="324" fill="#b7a7ff">let workspace = Desktop()</text>
+      <text x="350" y="353" fill="#858ca6">// Less arranging. More doing.</text>
+      <text x="350" y="382" fill="#d8d8e9">workspace.makeRoom(for: .focus)</text>
+    </g>
+    <g fill="#34374f"><rect x="350" y="408" width="216" height="6" rx="3"/><rect x="366" y="429" width="274" height="6" rx="3"/><rect x="366" y="450" width="183" height="6" rx="3"/><rect x="350" y="471" width="241" height="6" rx="3"/></g>
+    <rect x="751" y="310" width="290" height="92" rx="8" fill="#24243a"/>
+    <rect x="770" y="330" width="36" height="36" rx="9" fill="url(#accent)"/>
+    <g fill="#67647f"><rect x="820" y="333" width="121" height="7" rx="3"/><rect x="820" y="350" width="185" height="5" rx="2"/><rect x="770" y="380" width="230" height="4" rx="2"/></g>
+    <g font-family="'SFMono-Regular', Consolas, monospace" font-size="12"><text x="750" y="498" fill="#b7a7ff">➜</text><text x="771" y="498" fill="#c1c6d9">~/workspace</text><text x="750" y="523" fill="#858ca6">Ready when you are.</text><rect x="750" y="539" width="7" height="14" fill="#b7a7ff"/></g>
+  </g>
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12" text-anchor="middle" fill="#8b8fa8">
+    <text x="640" y="646">NATIVE DESKTOPS  /  AUTOMATIC TILING  /  KEYBOARD-FIRST</text>
+  </g>
+</svg>
