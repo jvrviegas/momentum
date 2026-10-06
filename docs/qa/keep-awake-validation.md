@@ -22,13 +22,13 @@ Compiled `/tmp/momentum-keep-awake-probe.swift` with `xcrun swiftc`, importing `
 
 | Case | Status | Evidence / remaining work |
 |---|---|---|
-| M1 assertions and actual idle/display behavior | Partial | Native probe and production-service smoke create/release intended types; actual idle behavior pending |
+| M1 assertions and actual idle/display behavior | Passed — user confirmed | Native requests verified; owner confirmed system-only display sleep, combined-mode display prevention and the remaining idle-protection check. Exact final timing/power-source trace was not supplied |
 | M2 expiry/extension/countdown with closed popover | Passed | Closed-popover countdown, +15 extension, indefinite no countdown/extension controls and actual 15-minute natural expiry verified |
-| M3 explicit sleep/lid/lock and wake deadlines | Partial | Lock, explicit Sleep and lid-close sleep passed; valid timed wake preserves elapsed deadline. Indefinite/wake-after-expiry still pending |
+| M3 explicit sleep/lid/lock and wake deadlines | Passed — mixed evidence | Agent captured lock/explicit/lid/valid timed/indefinite wake evidence; owner additionally confirmed wake after timed expiry stays inactive |
 | M4 power changes/exit/crash/relaunch | Passed (safe scope) | Awake battery↔AC, Stop, actual app Quit, SIGKILL cleanup and inactive relaunch with preferences retained passed; unsafe critical-battery exhaustion explicitly excluded |
-| M5 AX-denied/tiling-disabled and shortcuts/config | Partial | Fake routing, live atomic edits, feedback and existing Carbon collision regression pass; native interaction pending |
-| M6 keyboard/VoiceOver/appearance/Settings commands | In progress | User reported no Tab highlight/activation and no ⌘, response; keyboard navigation is disabled. Agent reproduced successful ⌘, Settings opening with real popover focus. User retest pending; VoiceOver declined by user, not passed |
-| M7 injected error UI | Partial | Native/save/rollback/release failure unit tests and Retry presentation pass; actual injected-error UI interaction pending |
+| M5 AX-denied/tiling-disabled and shortcuts/config | Passed — mixed evidence | Owner confirmed fresh denied-permission startup, Start/Stop/shortcut and no extra prompt; permission restored afterward. Native config/binding feedback included in owner's final UI confirmation; automated/live config and Carbon collision checks also pass |
+| M6 keyboard/VoiceOver/appearance/Settings commands | Passed with owner exception | Owner confirmed remaining keyboard/appearance/UI checks work after the earlier issue report; agent independently opened Settings via focused-popover ⌘,. VoiceOver explicitly declined by owner: skipped, not passed |
+| M7 injected error UI | Passed — agent verified | Production MenuBarContent/KeepAwakeService rendered in a native NSHostingView with fake power clients/temp configs. Five failure cases show inline errors, correct inactive/previous-active state and successful actual Retry button recovery; preserved existing deadlines |
 
 ## Automated quality gate (2026-10-06)
 
@@ -111,7 +111,27 @@ User explicitly confirmed readiness to switch builds and interrupt the normal se
 - Normal installed launch runs as PID 90584 from `/Applications/Momentum.app/Contents/MacOS/Momentum`, with no XCTest guard environment flags. Keep Awake is Inactive and holds no requests; full normal startup wiring is restored rather than the isolated icon-preview mode.
 - Original real-profile config still matches the pre-test backup byte-for-byte. Temporary QA binding and observer processes have been removed/stopped. Comparison prototypes are removed after recording the final icon choice. Remaining manual acceptance gaps are unchanged; local installation is not a declaration of full QA approval.
 
-## Remaining interactive procedure
+## Subsequent user confirmation
+
+- User reported that a system-only session allowed the display to sleep, tested a few minutes before reporting. Record this as user-observed evidence, not an independently captured trace: exact timing/power source were not supplied. The display-allowed portion of M1 is complete; combined-mode display prevention and attribution of system idle prevention remain pending.
+
+- Corrected the permission navigation for this macOS 27.0.1 build: the actual pane is **Privacy & Security → Device Control and Data Access**, not a row labelled Accessibility. The legacy `Privacy_Accessibility` deep link opens that renamed pane. Native screen/AX inspection confirmed a Momentum toggle; no permission was changed by the agent. The outdated source hint is now corrected in `Momentum/SettingsView.swift`; refreshing the installed binary is a deployment step, not an unimplemented source change.
+
+- User confirmed Keep Awake could be turned on with Momentum's Device Control and Data Access permission disabled, then explicitly confirmed restarting Momentum after disabling that permission. Record fresh permission-denied startup and successful activation as user-observed passes. User additionally confirmed activation causes no additional permission prompt. In response to the explicit Start/Stop/configured-shortcut test instructions, the user confirmed the controls work. Record denied-permission Start/Stop and toggle-shortcut operation without additional prompts as user-confirmed passes. Native config/binding error feedback is still pending; do not mark all of M5 passed.
+
+## Final acceptance update — 2026-10-06
+
+The owner confirmed the four remaining numbered groups were working: (1) idle/display protection, (2) wake after expiry, (3) UI/navigation/appearance/error feedback, and (4) the permission-pane path. Record (1)–(3) as user-reported passes, not independently captured traces. The actual source text for (4) still had the old name, so it was corrected separately and compiled/tested.
+
+- Fresh full gate after the copy fix: **93 tests in 12 suites passed**, no Swift warnings. Result: `/tmp/momentum-keep-awake-final.HO1pVD/Tests.xcresult`; log: `/tmp/momentum-keep-awake-final-tests.log`.
+- To independently complete injected-failure UI validation, a temporary AppKit probe hosted the actual production `MenuBarContent` and `KeepAwakeService`, with fake power requests, scratch stores and an inert tiling stub. No shipped debug flag, real power request, updater or global shortcut was added.
+- Cases: first activation failure, second assertion failure/rollback, active upgrade failure, preference-save failure, and active downgrade-release failure. Native AX inspection and screenshots verified inline error/status; pressing the **actual Retry button** removed the error and recovered. Failed active transactions retained original mode/default/deadline, and successful retries kept the exact original deadline.
+- Evidence screenshots: [activation](keep-awake-errors/activation.png), [second assertion](keep-awake-errors/second-assertion.png), [mode change](keep-awake-errors/mode.png), [save failure](keep-awake-errors/persistence.png), [downgrade](keep-awake-errors/downgrade.png).
+- Logs are `/tmp/momentum-error-ui-<case>.log`. Successful runs printed `retryVerified=true`. Initial throwaway-host launch attempts were discarded; only the successful native-host runs count as evidence. All probe processes were exited and successful scratch stores cleaned.
+- **VoiceOver remains skipped at the owner's explicit request.** Critical-battery exhaustion remains intentionally unperformed; OS idle-assertion safety contracts and earlier explicit sleep/lid evidence are the applicable protection boundary.
+- No additional code defect was found. Final approval must disclose the user-confirmed portions and these exceptions, rather than claim every check was independently observed.
+
+## Manual procedure reference (completed or excepted as recorded above)
 
 1. Quit the installed Momentum before launching the development build normally (avoid duplicate tiling/hotkeys). Back up the normal config first if testing saved selections or bindings.
 2. Open the development build from the quality-gate `DerivedData/Build/Products/Debug/Momentum.app`; run M1–M7 above using the detailed procedures in the implementation plan.
@@ -119,4 +139,4 @@ User explicitly confirmed readiness to switch builds and interrupt the normal se
 4. Run explicit sleep/lid/lock checks only when ready to interrupt work; do not change permanent power preferences or deliberately exhaust the battery. The pre-existing `caffeinate` process may mask idle behavior; arrange that check with its owner, do not kill unrelated processes automatically.
 5. Record observed results and reviewer acceptance here before checking README feature boxes or marking the proposal shipped.
 
-T1 empirical sleep/clock and native lifecycle checks have passed; remaining UI checks and T7 manual acceptance remain open. Production implementation may be developed on the authorized normal profile, but must not be declared shipped or README tracker boxes checked before the remaining evidence and reviewer sign-off.
+T1 native feasibility and T7 manual acceptance are now complete at the evidence level recorded above, with the explicit owner-requested VoiceOver exception and planned unsafe-battery exclusion. Production implementation may be developed on the authorized normal profile, but must not be declared shipped or README tracker boxes checked before the remaining evidence and reviewer sign-off.
