@@ -13,6 +13,7 @@ import QuartzCore
     private(set) var isTrusted = false
     /// Actions whose hotkey couldn't be registered (bound twice, or refused by the system).
     private(set) var failedHotKeys: Set<Action> = []
+    private(set) var lastDesktopMoveError: String?
 
     @ObservationIgnored private let configStore: ConfigStore
     @ObservationIgnored private let observer = WindowObserver()
@@ -29,7 +30,7 @@ import QuartzCore
     /// Last acknowledged requests, not assumed actual geometry. Final resizes repair native clamps.
     @ObservationIgnored private var lastAnimationFrames: [WindowID: CGRect] = [:]
     @ObservationIgnored private var animationSpace: SpaceID?
-    /// Set while a window is being dragged to another Desktop, so the layout isn't applied mid-drag.
+    /// Set while a native Desktop move is awaiting confirmation, so layout state stays consistent.
     @ObservationIgnored private var isSuspended = false
     /// Set while the user drags or resizes a window, so the layout doesn't fight the mouse.
     @ObservationIgnored private var isTrackingDrag = false
@@ -63,6 +64,10 @@ import QuartzCore
 
     func retile() {
         refresh()
+    }
+
+    func dismissDesktopMoveError() {
+        lastDesktopMoveError = nil
     }
 
     // MARK: - Layout
@@ -255,7 +260,7 @@ import QuartzCore
     // MARK: - Commands
 
     private func perform(_ action: Action) {
-        // While a window is being carried to another Desktop, a second command would interfere with the synthetic drag.
+        // Serialize commands while a native Desktop move is awaiting confirmation.
         guard isTrusted, !isSuspended else { return }
         switch action {
         case .sendToDesktop(let number): sendToDesktop(number)
@@ -299,22 +304,26 @@ import QuartzCore
         refreshTask?.cancel()
         cancelAnimation()
 
-        // Close the gap on the current Desktop right away; once we switch Desktops these windows are no longer visible to AX.
-        // If the move fails, the next refresh puts the window back since it's still on this Desktop.
-        let space = Spaces.mainDisplaySpace
-        if isEnabled, var tree = trees[space] {
-            tree.remove(window.id)
-            trees[space] = tree
-            apply(tree, animated: false)
-        }
-
+        let source = Spaces.space(for: window.id)
+        lastDesktopMoveError = nil
         isSuspended = true
         Task {
-            await SpaceMover.move(window, toDesktop: number)
-            isSuspended = false
-            // The window is now on the target Desktop, which is visible; tile it there.
-            // The old Desktop's tree drops it on the next refresh after switching back.
-            refresh()
+            defer {
+                isSuspended = false
+                refresh()
+            }
+            do {
+                try await SpaceMover.move(window, toDesktop: number)
+                // A same-Desktop command is a no-op. Don't remove/reinsert it and change its tile.
+                if let source, Spaces.space(for: window.id) != source, var tree = trees[source] {
+                    tree.remove(window.id)
+                    trees[source] = tree
+                }
+                // Stay on the source Desktop. The destination is reconciled when it becomes visible.
+            } catch {
+                lastDesktopMoveError = error.localizedDescription
+                NSSound.beep()
+            }
         }
     }
 }

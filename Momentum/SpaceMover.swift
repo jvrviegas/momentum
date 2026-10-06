@@ -1,37 +1,53 @@
 import CoreGraphics
 import Foundation
 
-/// Moves a window to another native Desktop without private APIs: it holds the window by its
-/// title bar and triggers the system "Switch to Desktop N" shortcut, so macOS carries the window along.
-/// Requires those shortcuts to be turned on in System Settings › Keyboard › Keyboard Shortcuts › Mission Control.
+/// Sends windows directly through SkyLight; only Desktop switching uses system shortcuts.
 enum SpaceMover {
     typealias Shortcut = (keyCode: CGKeyCode, flags: CGEventFlags)
 
-    static func move(_ window: AXWindow, toDesktop number: Int) async {
-        guard let shortcut = desktopShortcut(number), let point = window.titleBarGrabPoint else { return }
+    enum MoveError: LocalizedError, Equatable {
+        case desktopUnavailable(Int)
+        case nativeOperationUnavailable
+        case windowUnavailable
+        case timedOut
 
-        await waitForModifierRelease()
-
-        let source = CGEventSource(stateID: .hidSystemState)
-        let originalCursor = CGEvent(source: nil)?.location
-        let dragPoint = CGPoint(x: point.x, y: point.y + 2)
-
-        // A press alone is a click; macOS only carries the window across Desktops once it's being dragged.
-        postMouse(.mouseMoved, at: point, source: source)
-        postMouse(.leftMouseDown, at: point, source: source)
-        try? await Task.sleep(for: .milliseconds(50))
-        postMouse(.leftMouseDragged, at: dragPoint, source: source)
-        try? await Task.sleep(for: .milliseconds(50))
-
-        post(shortcut, source: source)
-
-        // Keep holding the window while the Desktop switch animation runs.
-        try? await Task.sleep(for: .milliseconds(400))
-        postMouse(.leftMouseUp, at: dragPoint, source: source)
-
-        if let originalCursor {
-            CGWarpMouseCursorPosition(originalCursor)
+        var errorDescription: String? {
+            switch self {
+            case .desktopUnavailable(let number): "Desktop \(number) isn't available on the main display."
+            case .nativeOperationUnavailable: "Native Desktop moves aren't available on this macOS build."
+            case .windowUnavailable: "The window is no longer available."
+            case .timedOut: "macOS didn't confirm the Desktop move. Try again."
+            }
         }
+    }
+
+    static func move(_ window: AXWindow, toDesktop number: Int) async throws {
+        guard let target = Spaces.desktopSpace(number) else { throw MoveError.desktopUnavailable(number) }
+        try await move(windowID: window.id, toSpace: target)
+    }
+
+    /// The asynchronous private operation has no documented success result. Verify membership
+    /// before the caller changes layout state. Dependencies allow tests without moving real windows.
+    static func move(
+        windowID: WindowID, toSpace target: SpaceID,
+        request: (WindowID, SpaceID) -> Bool = { MomentumRequestNativeSpaceMove($0, $1) },
+        membership: (WindowID) -> SpaceID? = { Spaces.space(for: $0) },
+        wait: () async throws -> Void = { try await Task.sleep(for: .milliseconds(20)) }
+    ) async throws {
+        try Task.checkCancellation()
+        guard let source = membership(windowID) else { throw MoveError.windowUnavailable }
+        guard source != target else { return }
+        guard request(windowID, target) else { throw MoveError.nativeOperationUnavailable }
+        for _ in 0..<100 {
+            try Task.checkCancellation()
+            guard let current = membership(windowID) else { throw MoveError.windowUnavailable }
+            if current == target { return }
+            try await wait()
+        }
+        // Check once more after the final wait, before reporting a timeout.
+        try Task.checkCancellation()
+        if membership(windowID) == target { return }
+        throw MoveError.timedOut
     }
 
     /// Switches to Desktop `number` by triggering the system "Switch to Desktop N" shortcut.
@@ -67,21 +83,5 @@ enum SpaceMover {
             event?.flags = shortcut.flags
             event?.post(tap: .cghidEventTap)
         }
-    }
-
-    /// The hotkey that triggered the move is usually still held; its modifiers would turn the
-    /// synthetic click and Ctrl+N into different shortcuts. Waits up to a second for them to be released.
-    private static func waitForModifierRelease() async {
-        let modifiers: CGEventFlags = [.maskAlternate, .maskShift, .maskCommand, .maskControl]
-        for _ in 0..<50 {
-            if CGEventSource.flagsState(.hidSystemState).intersection(modifiers).isEmpty { return }
-            try? await Task.sleep(for: .milliseconds(20))
-        }
-    }
-
-    private static func postMouse(_ type: CGEventType, at point: CGPoint, source: CGEventSource?) {
-        let event = CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: point, mouseButton: .left)
-        event?.flags = []
-        event?.post(tap: .cghidEventTap)
     }
 }

@@ -37,6 +37,10 @@ private struct MenuContent: View {
     var body: some View {
         Toggle("Tiling Enabled", isOn: $manager.isEnabled)
         Button("Retile") { manager.retile() }
+        if let error = manager.lastDesktopMoveError {
+            Text(error)
+            Button("Dismiss Move Error") { manager.dismissDesktopMoveError() }
+        }
         Divider()
         Button("Settings…") {
             // Menu-bar-only apps aren't active, so the Settings window would open behind other apps.

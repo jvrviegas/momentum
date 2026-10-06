@@ -23,6 +23,13 @@ struct SettingsView: View {
                 }
             }
 
+            if let error = manager.lastDesktopMoveError {
+                Section {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.red)
+                }
+            }
+
             Section {
                 TextField("Gap between windows", value: spacing(\.gap), format: .number)
                 TextField("Screen padding", value: spacing(\.outerPadding), format: .number)
@@ -89,7 +96,7 @@ struct SettingsView: View {
                 Text("Hotkeys")
             } footer: {
                 Text("""
-                    Switching and sending windows to a Desktop use the "Switch to Desktop N" shortcuts, which must be turned on in System Settings › Keyboard › Keyboard Shortcuts › Mission Control.
+                    Sending moves the window directly to an existing Desktop on the main display without switching Desktops or moving the cursor. Native moves use an unsupported macOS API and may stop working after a system update. Only switching uses the "Switch to Desktop N" shortcuts, which must be turned on in System Settings › Keyboard › Keyboard Shortcuts › Mission Control.
 
                     Shortcuts follow key positions, so they work on any keyboard layout; the config file names keys by their US-layout position. On some layouts ⌥ combinations type characters (on German, ⌥L types @), so rebind any you need for typing.
                     """)

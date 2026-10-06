@@ -2,7 +2,7 @@ import AppKit
 
 typealias SpaceID = UInt64
 
-/// Uses the read-only private SkyLight functions declared in `Momentum-Bridging-Header.h`.
+/// Reads native Space membership and Desktop order through the private bridge.
 enum Spaces {
     private static let allSpacesMask: Int32 = 0x7
 
@@ -16,6 +16,36 @@ enum Spaces {
         }
         // Falls back when "Displays have separate Spaces" is off.
         return CGSGetActiveSpace(connection)
+    }
+
+    /// Desktop numbers follow Mission Control order, excluding fullscreen Spaces.
+    static func desktopSpace(_ number: Int) -> SpaceID? {
+        guard let managed = MomentumCopyManagedDisplaySpaces(CGSMainConnectionID()) as? [[String: Any]] else { return nil }
+        var identifier: String?
+        if let uuid = CGDisplayCreateUUIDFromDisplayID(CGMainDisplayID())?.takeRetainedValue() {
+            identifier = CFUUIDCreateString(nil, uuid) as String?
+        }
+        return desktopSpace(number, in: managed, displayIdentifier: identifier, currentSpace: mainDisplaySpace)
+    }
+
+    /// Pure snapshot parsing, also handles "Displays have separate Spaces" being off.
+    static func desktopSpace(_ number: Int, in managed: [[String: Any]],
+                             displayIdentifier: String?, currentSpace: SpaceID) -> SpaceID? {
+        guard (1...9).contains(number) else { return nil }
+        let display = managed.first {
+            guard let displayIdentifier else { return false }
+            return ($0["Display Identifier"] as? String) == displayIdentifier
+        }
+            ?? managed.first { entry in
+                (entry["Spaces"] as? [[String: Any]])?.contains {
+                    ($0["id64"] as? NSNumber)?.uint64Value == currentSpace
+                } == true
+            }
+        guard let spaces = display?["Spaces"] as? [[String: Any]] else { return nil }
+        let desktops = spaces.filter { ($0["type"] as? NSNumber)?.intValue == 0 }
+        guard desktops.indices.contains(number - 1),
+              let id = desktops[number - 1]["id64"] as? NSNumber, id.uint64Value != 0 else { return nil }
+        return id.uint64Value
     }
 
     /// The Space that `window` lives on.

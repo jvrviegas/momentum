@@ -16,4 +16,9 @@ uint64_t CGSGetActiveSpace(CGSConnectionID connection);
 uint64_t CGSManagedDisplayGetCurrentSpace(CGSConnectionID connection, CFStringRef displayUUID);
 CFArrayRef _Nullable CGSCopySpacesForWindows(CGSConnectionID connection, int mask, CFArrayRef windowIDs) CF_RETURNS_RETAINED;
 
+CFArrayRef _Nullable MomentumCopyManagedDisplaySpaces(CGSConnectionID connection) CF_RETURNS_RETAINED;
+
+/// Submits a native move if the private operation is available. Does not imply completion.
+BOOL MomentumRequestNativeSpaceMove(CGWindowID windowID, uint64_t spaceID);
+
 CF_ASSUME_NONNULL_END

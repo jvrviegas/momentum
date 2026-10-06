@@ -86,35 +86,6 @@ struct AXWindow {
         NSRunningApplication(processIdentifier: pid)?.activate()
     }
 
-    /// A point near the top of the window that can be grabbed to drag it. Each candidate is hit-tested
-    /// so we don't press a tab, button or text field (e.g. browser tab strips start right after the traffic lights).
-    /// Nil when no candidate is safe to press.
-    var titleBarGrabPoint: CGPoint? {
-        guard let frame else { return nil }
-        var startX = frame.minX + 80
-        if let zoomButton: AXUIElement = element.value(of: kAXZoomButtonAttribute),
-           let position: CGPoint = zoomButton.axValue(of: kAXPositionAttribute, type: .cgPoint),
-           let size: CGSize = zoomButton.axValue(of: kAXSizeAttribute, type: .cgSize) {
-            startX = position.x + size.width + 8
-        }
-
-        let systemWide = AXUIElementCreateSystemWide()
-        let draggableRoles: Set<String> = [kAXWindowRole, kAXToolbarRole, kAXGroupRole, kAXStaticTextRole]
-        for yOffset in [6.0, 12, 20] {
-            for x in stride(from: startX, to: frame.maxX - 20, by: 30) {
-                let point = CGPoint(x: x, y: frame.minY + yOffset)
-                var hit: AXUIElement?
-                guard AXUIElementCopyElementAtPosition(systemWide, Float(point.x), Float(point.y), &hit) == .success,
-                      let hit else { continue }
-                var hitPID: pid_t = 0
-                AXUIElementGetPid(hit, &hitPID)
-                if hitPID == pid, let role: String = hit.value(of: kAXRoleAttribute), draggableRoles.contains(role) {
-                    return point
-                }
-            }
-        }
-        return nil
-    }
 }
 
 extension AXUIElement {
