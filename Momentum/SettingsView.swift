@@ -13,7 +13,7 @@ struct SettingsView: View {
         Form {
             if !manager.isTrusted {
                 Section {
-                    Label("Tiling requires Accessibility access in System Settings › Privacy & Security › Accessibility. Keep Awake does not.",
+                    Label("Tiling requires Device Control and Data Access in System Settings › Privacy & Security. Keep Awake does not.",
                           systemImage: "exclamationmark.triangle")
                 }
             }
