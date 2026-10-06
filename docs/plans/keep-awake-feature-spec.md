@@ -4,11 +4,11 @@
 
 | | |
 |---|---|
-| **Status** | Approved — reviewed and approved by João; technical OS validation remains part of implementation |
+| **Status** | Approved and implemented on the feature branch; validation accepted with explicit VoiceOver-test exception; awaiting merge |
 | **Owner** | João |
-| **Tech reviewer** | Pending |
+| **Tech reviewer** | Requirements-based review completed; see `docs/reviews/keep-awake-implementation-review.md` |
 | **Client sign-off / Linear project** | N/A — personal Momentum project; repository-local spec |
-| **Merged into** | Pending implementation |
+| **Merged into** | Branch behavior documented at `docs/spec/keep-awake.md`; proposal archival pending main-branch merge |
 
 ## Problem
 
@@ -58,7 +58,7 @@ Prefer public macOS power assertions with an injectable adapter and clock; verif
 
 ## Open questions
 
-No unresolved product decisions from this interview. Technical feasibility and OS interaction validation remain required; this spec does not promise unsupported sleep overrides.
+No unresolved product decisions from this interview. Validation evidence and owner-authorized exceptions are recorded in `docs/qa/keep-awake-validation.md`; this spec does not promise unsupported sleep overrides.
 
 ## Changelog
 

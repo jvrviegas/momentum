@@ -3,8 +3,8 @@
 > **Scope:** `jvrviegas/momentum`, native macOS app. One feature branch/worktree and PR to `main` (`daf18d874c9fc8cb876e9cf4a76afc8c80145b4d` at planning time).
 > **Canonical proposal:** `docs/plans/keep-awake-feature-spec.md`, approved by João, changelog 2026-10-06, KA-01–KA-20. Repository-local feature; no Linear issue, blockers, due date or estimate supplied.
 > **Owner:** João · **Technical reviewer:** pending.
-> **Revision:** v2 — 2026-10-06. Implementation and automated quality gate complete; manual acceptance pending.
-> **Readiness:** D1–D8 remain approved. João explicitly authorized the normal profile instead of a disposable one. Native assertion probes, production-service/controller smoke, empirical sleep-inclusive clock, lock/lid/power/expiry and app exit/relaunch checks passed. Remaining wake-after-expiry, idle-effect and UI acceptance gaps block shipping claims. See `docs/qa/keep-awake-validation.md`.
+> **Revision:** v3 — 2026-10-06. Implementation, automated validation and manual acceptance complete with the owner's explicit VoiceOver-test exception; ready for merge.
+> **Readiness:** D1–D8 remain approved. João explicitly authorized the normal profile instead of a disposable one. Native assertion probes, production-service/controller smoke, empirical sleep-inclusive clock, lock/lid/power/expiry and app exit/relaunch checks passed. The owner confirmed remaining ordinary manual checks; native injected-error UI was independently verified. Final review approved merge with VoiceOver explicitly skipped, not passed. See `docs/qa/keep-awake-validation.md`.
 
 ## Outcome
 
@@ -16,15 +16,15 @@ Commit-sized vertical changes, with tests alongside implementation (not necessar
 
 | Task | What | Suggested commit | Status |
 |---|---|---|---|
-| T1 | Verify native API/lifecycle and popover feasibility | `docs(keep-awake): record native feasibility checks` | Native API/clock/lifecycle passed; full UI acceptance pending |
+| T1 | Verify native API/lifecycle and popover feasibility | `docs(keep-awake): record native feasibility checks` | [x] |
 | T2 | Preferences/action schema and isolated ConfigStore seam | `feat(keep-awake): add persisted preferences` | [x] |
 | T3 | Transactional native assertion adapter | `feat(keep-awake): add power assertion adapter` | [x] |
 | T4 | Session state, deadlines and lifecycle | `feat(keep-awake): implement session lifecycle` | [x] |
 | T5 | App-level action/config routing independent of tiling | `refactor(hotkeys): separate application action routing` | [x] |
-| T6 | Native popover and dynamic menu-bar label | `feat(keep-awake): add menu bar controls` | Code/tests done; bold Charged icon selected; M6 partial |
-| T7 | Full regression suite and manual OS/accessibility validation | `test(keep-awake): verify integration and OS behavior` | 93 tests passed after review fixes; manual matrix partial/pending |
-| T8 | Living behavior spec and README, gated by evidence | `docs(keep-awake): document verified behavior` | Draft docs done; shipping/sign-off pending |
-| — | Quality gate passed, review requested, PR opened after authorization | — | Quality passed; review offered; no PR authorized/opened |
+| T6 | Native popover and dynamic menu-bar label | `feat(keep-awake): add menu bar controls` | [x] Bold Charged; owner UI acceptance with VoiceOver exception |
+| T7 | Full regression suite and manual OS/accessibility validation | `test(keep-awake): verify integration and OS behavior` | [x] 93 tests + five native failure-UI cases; mixed agent/owner manual evidence |
+| T8 | Living behavior spec and README, gated by evidence | `docs(keep-awake): document verified behavior` | [x] Source-preview docs updated; proposal archival waits for merge |
+| — | Quality gate passed, review requested, PR opened after authorization | — | Quality/review approved with explicit exception; no PR/merge yet authorized |
 
 ## Decisions (approved by João 2026-10-06)
 
@@ -334,3 +334,5 @@ Custom durations/clock-time deadlines; lid-close overrides; power-source automat
 - 2026-10-06 — User authorized fixes. Commits `f990a4c`/`7c24ce3` capture Retry intent across expiry and make downgrade completion throwing/ownership-preserving, with ConfigStore candidate write-before-native-completion and rollback-before-publication. Added red→green regression coverage; full quality gate now passes 93 tests and production native upgrade/downgrade/synthetic-lifecycle smoke passes. The subsequent re-review verified B1/B2 resolved with 93 passing tests; B3 manual acceptance remained open.
 - 2026-10-06 — User performed normal-profile lock, explicit Sleep, lid-close, timed/indefinite valid wake, power transitions and native Stop/extension/expiry checks. Actual Quit/SIGKILL/relaunch and a temporary native hotkey passed. Remaining cases are tracked in `docs/qa/keep-awake-validation.md`; VoiceOver was declined, not passed. Temporary QA shortcut was removed and original config restored exactly.
 - 2026-10-06 — User compared five active-icon concepts, then smaller/bolder Charged variants live, and selected the bolder lightning. Committed the final 18-point monochrome template in `594a0d9`; both native asset builds passed all 93 tests. Comparison prototypes are removed after capturing the decision. User authorized committing/pushing the feature branch and local app installation; no release/version/tag or PR operation is authorized by that request.
+- 2026-10-06 — Owner confirmed remaining idle/display, wake-after-expiry and ordinary UI checks. Corrected the actual Settings permission hint to macOS 27's Device Control and Data Access name (`15bbbef`). Fresh full suite: 93 passing tests. Native hosting of the production view/service with fake power clients verified activation, second-assertion, mode, persistence and downgrade failures plus real Retry buttons/deadline preservation; screenshots retained in `docs/qa/keep-awake-errors/`.
+- 2026-10-06 — Final requirements-based review against `7ae9bf7` approved merge with the owner's explicit VoiceOver-test exception; unsafe battery exhaustion stays excluded. Evidence provenance is recorded rather than claiming every manual case was independently captured. README source-preview tracker updated. No PR creation/merge/public release is performed by acceptance.

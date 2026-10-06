@@ -1,18 +1,18 @@
 # Keep Awake — Implementation Review
 
-**Date:** 2026-10-06  
-**Worktree:** `/Users/joaoviegas/Projects/Personal/macos/.worktrees/keep-awake`  
-**Branch:** `feat/keep-awake`  
-**Commit:** `380cfae0056c9dd5e0ba0c8fea2301eab6f86a9f`  
-**Base:** `daf18d874c9fc8cb876e9cf4a76afc8c80145b4d` (`main`)  
-**Linear state:** N/A — repository-local feature  
+**Date:** 2026-10-06
+**Worktree:** `/Users/joaoviegas/Projects/Personal/macos/.worktrees/keep-awake`
+**Branch:** `feat/keep-awake`
+**Commit:** `380cfae0056c9dd5e0ba0c8fea2301eab6f86a9f`
+**Base:** `daf18d874c9fc8cb876e9cf4a76afc8c80145b4d` (`main`)
+**Linear state:** N/A — repository-local feature
 **PR:** None; no remote operation performed
 
 ## Current verdict — final review 2026-10-06
 
-**Reviewed commit:** `7ae9bf7a37f48321c122c1f521c6f80be8b9bd3d`  
-**Result:** ✅ **Approved for merge with the owner's explicit VoiceOver-test exception**  
-**B1:** ✅ Resolved · **B2:** ✅ Resolved · **B3:** ✅ Resolved at the evidence level recorded in QA  
+**Reviewed commit:** `7ae9bf7a37f48321c122c1f521c6f80be8b9bd3d`
+**Result:** ✅ **Approved for merge with the owner's explicit VoiceOver-test exception**
+**B1:** ✅ Resolved · **B2:** ✅ Resolved · **B3:** ✅ Resolved at the evidence level recorded in QA
 **Fresh validation:** 93 regression tests passed; five native injected-error UI scenarios passed. Remaining ordinary manual groups were confirmed by the owner.
 
 VoiceOver was explicitly declined, not passed. Critical-battery exhaustion was excluded by the approved safe test plan. Approval combines independently observed native/component evidence with clearly attributed owner reports; it does not claim independent traces for every manual check.
@@ -184,9 +184,9 @@ It injects a fake power client (no native create/release), a fake clock and a sc
 
 ## Re-review — 2026-10-06 (round 1)
 
-**Reviewed commit:** `54b1cad7ede55f887c5a60208e4ac109854cc540`  
-**Previous reviewed commit:** `380cfae0056c9dd5e0ba0c8fea2301eab6f86a9f`  
-**Fix commits:** `f990a4c` (B1), `7c24ce3` (B2), `54b1cad` (behavior/validation documentation)  
+**Reviewed commit:** `54b1cad7ede55f887c5a60208e4ac109854cc540`
+**Previous reviewed commit:** `380cfae0056c9dd5e0ba0c8fea2301eab6f86a9f`
+**Fix commits:** `f990a4c` (B1), `7c24ce3` (B2), `54b1cad` (behavior/validation documentation)
 **Result:** ❌ **Changes Requested — manual acceptance gate only**
 
 ### Previous findings
@@ -268,8 +268,8 @@ Harness output: `/tmp/momentum-keep-awake-rereview-repro.log`. It uses only fake
 
 ## Final review — 2026-10-06 (round 2)
 
-**Reviewed commit:** `7ae9bf7a37f48321c122c1f521c6f80be8b9bd3d`  
-**Previous reviewed commit:** `54b1cad7ede55f887c5a60208e4ac109854cc540`  
+**Reviewed commit:** `7ae9bf7a37f48321c122c1f521c6f80be8b9bd3d`
+**Previous reviewed commit:** `54b1cad7ede55f887c5a60208e4ac109854cc540`
 **Result:** ✅ **Approved for merge, with owner-requested VoiceOver exception**
 
 ### Scope
