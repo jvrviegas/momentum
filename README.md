@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>A little less window management. A lot more flow.</strong><br>
-  A native, keyboard-first tiling app for macOS.
+  A native, keyboard-first workspace for focus and productivity on macOS.
 </p>
 
 <p align="center">
@@ -17,6 +17,7 @@
 
 <p align="center">
   <a href="#get-started"><strong>Get started →</strong></a> &nbsp; · &nbsp;
+  <a href="#road-to-v1">Road to v1</a> &nbsp; · &nbsp;
   <a href="#keyboard-first-by-design">Shortcuts</a> &nbsp; · &nbsp;
   <a href="CHANGELOG.md">What's new</a> &nbsp; · &nbsp;
   <a href="https://github.com/jvrviegas/momentum/issues">Feedback</a>
@@ -65,6 +66,50 @@ Momentum automatically arranges your windows, gives every native macOS Desktop i
     </td>
   </tr>
 </table>
+
+## Road to v1
+
+Arrange your windows, stay focused, and keep your work moving—all from one quiet menu-bar app. Window management is the foundation; focus tools should complement it, not become another distraction.
+
+This checklist tracks the intended **v1 scope**, not a list of features already shipping. Checked items are implemented in the source preview, not a guarantee of release readiness. Unchecked items are planned; no release date is promised.
+
+### Organize your workspace
+
+- [x] Automatic BSP window tiling with configurable gaps and padding.
+- [x] Separate layouts for native macOS Desktops.
+- [x] Keyboard navigation, window swapping, Desktop switching, and sending windows to another Desktop.
+- [x] Floating windows, app exclusions, and a menu-bar toggle to pause tiling.
+- [x] Configurable shortcuts through Settings and live-reloaded JSON.
+- [x] Animated layout transitions with Reduce Motion support.
+- [ ] Multi-display tiling beyond the main display.
+
+### Keep work uninterrupted
+
+- [ ] Keep Awake toggle accessible from the menu bar and a configurable shortcut.
+- [ ] Timed Keep Awake sessions or manual control until stopped.
+- [ ] Separate options to prevent system sleep and keep the display on.
+- [ ] Clear menu-bar indication when Keep Awake is active.
+
+### Stay focused
+
+- [ ] Lightweight focus timer with configurable duration and keyboard controls.
+- [ ] Optional break reminders.
+- [ ] Focus sessions that can optionally enable Keep Awake.
+- [ ] Restore the previous Keep Awake state when a focus session ends or is cancelled.
+
+### Stay out of your way
+
+- [x] Menu-bar app with no Dock presence.
+- [x] Accessibility permission prompting and Settings controls.
+- [ ] Launch at login.
+- [ ] Release-ready permission onboarding and clear recovery guidance.
+- [ ] Developer ID-signed, notarized installer.
+- [ ] Working automatic-update delivery for distributed releases; Sparkle infrastructure already exists.
+- [ ] Validate supported macOS and Desktop-move behavior with fully enabled SIP; do not require users to disable SIP.
+
+**Not in v1:** clipboard history, app launching, notes, task management, or detailed productivity analytics.
+
+The [landing page prototype](docs/landing/prototype.html) separates capabilities available in the preview from planned v1 features. Its workspace illustration and film are concepts, not application recordings.
 
 ## Get started
 
