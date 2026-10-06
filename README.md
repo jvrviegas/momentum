@@ -71,13 +71,22 @@ Momentum automatically arranges your windows, gives every native macOS Desktop i
 
 Arrange your windows, stay focused, and keep your work moving—all from one quiet menu-bar app. Window management is the foundation; focus tools should complement it, not become another distraction.
 
-This checklist tracks the intended **v1 scope**, not a list of features already shipping. Checked items are implemented in the source preview, not a guarantee of release readiness. Unchecked items are planned; no release date is promised.
+This checklist is the **single high-level feature tracker for v1**, not a list of features already shipping. No release date is promised.
+
+- **Checked:** implemented in the source preview, not a guarantee of release readiness.
+- **Unchecked, unlabelled:** planned and not yet implemented.
+- **Partial:** some implementation or infrastructure exists, but the feature is incomplete.
+- **Awaiting validation:** compatibility or release behavior still needs verification.
+
+Update this checklist when implementation or validation changes a feature's status. Detailed implementation plans belong under `docs/plans/` as work on each feature starts; those plans track tasks and verification without duplicating this feature tracker.
 
 ### Organize your workspace
 
 - [x] Automatic BSP window tiling with configurable gaps and padding.
 - [x] Separate layouts for native macOS Desktops.
-- [x] Keyboard navigation, window swapping, Desktop switching, and sending windows to another Desktop.
+- [x] Keyboard navigation and window swapping.
+- [x] Desktop switching through configured macOS Mission Control shortcuts.
+- [x] Send windows to another Desktop using private macOS APIs; fully enabled SIP compatibility is **awaiting validation** (tracked below).
 - [x] Floating windows, app exclusions, and a menu-bar toggle to pause tiling.
 - [x] Configurable shortcuts through Settings and live-reloaded JSON.
 - [x] Animated layout transitions with Reduce Motion support.
@@ -100,12 +109,12 @@ This checklist tracks the intended **v1 scope**, not a list of features already 
 ### Stay out of your way
 
 - [x] Menu-bar app with no Dock presence.
-- [x] Accessibility permission prompting and Settings controls.
+- [x] Basic Accessibility permission prompting and guidance in Settings.
 - [ ] Launch at login.
-- [ ] Release-ready permission onboarding and clear recovery guidance.
-- [ ] Developer ID-signed, notarized installer.
-- [ ] Working automatic-update delivery for distributed releases; Sparkle infrastructure already exists.
-- [ ] Validate supported macOS and Desktop-move behavior with fully enabled SIP; do not require users to disable SIP.
+- [ ] **Partial:** release-ready permission onboarding and recovery, including permission revocation; basic prompting and Settings guidance exist.
+- [ ] **Partial:** Developer ID-signed, notarized installer; release tooling exists, but distribution remains source-only.
+- [ ] **Partial / awaiting validation:** working automatic-update delivery for distributed releases; Sparkle and “Check for Updates” are integrated, but end-to-end delivery remains unverified.
+- [ ] **Awaiting validation:** supported macOS and Desktop-move behavior with fully enabled SIP; previous move verification used partially disabled SIP. Do not require users to disable SIP.
 
 **Not in v1:** clipboard history, app launching, notes, task management, or detailed productivity analytics.
 
