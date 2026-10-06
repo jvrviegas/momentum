@@ -4,14 +4,22 @@ import SwiftUI
 @main struct MomentumApp: App {
     private let configStore: ConfigStore
     private let manager: TilingManager
+    private let keepAwake: KeepAwakeService
+    private let controller: AppController
     /// Sparkle updater; checks the GitHub Releases appcast (`SUFeedURL` in Info.plist).
     private let updaterController: SPUStandardUpdaterController?
 
     init() {
-        configStore = ConfigStore()
+        let testing = AppEnvironment.isTesting
+        configStore = AppEnvironment.makeConfigStore(testing: testing)
         manager = TilingManager(configStore: configStore)
+        keepAwake = KeepAwakeService(store: configStore)
+        controller = AppController(store: configStore, keepAwake: keepAwake,
+            performTiling: { [manager] in manager.perform($0) },
+            refreshTiling: { [manager] in manager.configurationDidChange() })
         // Don't take over windows or check for updates when the app is only hosting unit tests.
-        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
+        if !testing {
+            controller.start()
             updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
             Task { [manager] in await manager.start() }
         } else {
@@ -24,7 +32,7 @@ import SwiftUI
             MenuContent(manager: manager, updaterController: updaterController)
         }
         Settings {
-            SettingsView(configStore: configStore, manager: manager)
+            SettingsView(configStore: configStore, manager: manager, controller: controller)
         }
     }
 }

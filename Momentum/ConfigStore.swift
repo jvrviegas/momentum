@@ -102,12 +102,12 @@ import Observation
         let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: descriptor, eventMask: [.write, .delete, .rename], queue: .main)
         source.setEventHandler { [weak self] in
             MainActor.assumeIsolated {
-                guard let self, !isShutdown, let event = watcher?.data else { return }
+                guard let self, !self.isShutdown, let event = self.watcher?.data else { return }
                 if isFilePresent {
-                    fileChanged(event)
-                } else if FileManager.default.fileExists(atPath: location.path) {
-                    reload()
-                    startWatching()
+                    self.fileChanged(event)
+                } else if FileManager.default.fileExists(atPath: self.location.path) {
+                    self.reload()
+                    self.startWatching()
                 }
             }
         }

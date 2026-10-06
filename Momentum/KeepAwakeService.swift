@@ -36,14 +36,14 @@ struct TaskKeepAwakeScheduler: KeepAwakeScheduler {
 
     @ObservationIgnored private let store: ConfigStore
     @ObservationIgnored private let assertions: PowerAssertions
-    @ObservationIgnored private let now: () -> Double
+    @ObservationIgnored private let now: @MainActor () -> Double
     @ObservationIgnored private let scheduler: any KeepAwakeScheduler
     @ObservationIgnored private var cancelScheduled: (() -> Void)?
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var isShutdown = false
 
     init(store: ConfigStore, assertions: PowerAssertions = PowerAssertions(),
-         now: @escaping () -> Double = KeepAwakeClock.now,
+         now: @escaping @MainActor () -> Double = KeepAwakeClock.now,
          scheduler: any KeepAwakeScheduler = TaskKeepAwakeScheduler()) {
         self.store = store
         self.assertions = assertions

@@ -81,10 +81,10 @@ struct ConfigTests {
 struct HotKeyManagerTests {
     @Test func comboBoundTwiceFailsForTheLaterAction() {
         let manager = HotKeyManager()
-        defer { manager.unregisterAll() }
+        defer { manager.shutdown() }
         let combo = KeyCombo(key: "f12", modifiers: [.ctrl, .alt, .shift, .cmd])
         // `toggleFloat` comes before `retile` in `Action.allCases`.
-        #expect(manager.register([.retile: combo, .toggleFloat: combo]) == [.retile])
+        #expect(manager.register([.retile: combo, .toggleFloat: combo, .toggleKeepAwake: combo]) == [.retile, .toggleKeepAwake])
     }
 }
 

@@ -11,13 +11,10 @@ import QuartzCore
         }
     }
     private(set) var isTrusted = false
-    /// Actions whose hotkey couldn't be registered (bound twice, or refused by the system).
-    private(set) var failedHotKeys: Set<Action> = []
     private(set) var lastDesktopMoveError: String?
 
     @ObservationIgnored private let configStore: ConfigStore
     @ObservationIgnored private let observer = WindowObserver()
-    @ObservationIgnored private let hotKeys = HotKeyManager()
 
     @ObservationIgnored private var trees: [SpaceID: BSPTree] = [:]
     /// Windows on the main display's current Space, from the latest refresh.
@@ -44,14 +41,6 @@ import QuartzCore
     private var config: Config { configStore.config }
 
     func start() async {
-        hotKeys.onAction = { [weak self] action in self?.perform(action) }
-        failedHotKeys = hotKeys.register(config.bindings)
-        configStore.onChange = { [weak self] config in
-            guard let self else { return }
-            failedHotKeys = hotKeys.register(config.bindings)
-            scheduleRefresh()
-        }
-
         await Permissions.waitForAccessibility()
         isTrusted = true
         // AX calls wait for the target app to answer; don't let a hung app freeze Momentum for the default ~6 s.
@@ -60,6 +49,10 @@ import QuartzCore
         observer.onUserDrag = { [weak self] window, isResize in self?.trackDrag(of: window, isResize: isResize) }
         observer.start()
         refresh()
+    }
+
+    func configurationDidChange() {
+        scheduleRefresh()
     }
 
     func retile() {
@@ -259,7 +252,7 @@ import QuartzCore
 
     // MARK: - Commands
 
-    private func perform(_ action: Action) {
+    func perform(_ action: Action) {
         // Serialize commands while a native Desktop move is awaiting confirmation.
         guard isTrusted, !isSuspended else { return }
         switch action {
@@ -273,6 +266,7 @@ import QuartzCore
         case .move(let direction): move(direction)
         case .toggleFloat: toggleFloat()
         case .retile: retile()
+        case .toggleKeepAwake: break // Routed by AppController, never an AX action.
         }
     }
 
