@@ -42,12 +42,42 @@ struct AXWindow {
         return CGRect(origin: position, size: size)
     }
 
-    func setFrame(_ frame: CGRect) {
-        // Size first so the move isn't clamped by the screen edge, then size again
-        // in case the original size prevented the window from fitting at the new position.
-        element.setAXValue(frame.size, of: kAXSizeAttribute, type: .cgSize)
-        element.setAXValue(frame.origin, of: kAXPositionAttribute, type: .cgPoint)
-        element.setAXValue(frame.size, of: kAXSizeAttribute, type: .cgSize)
+    enum FrameChange: Equatable {
+        case position(CGPoint)
+        case size(CGSize)
+    }
+
+    /// A known previous frame avoids redundant AX writes. The final resize always repairs edge clamping.
+    static func frameChanges(to frame: CGRect, from previous: CGRect?, forceResize: Bool = false,
+                             repairClamping: Bool = true) -> [FrameChange] {
+        let resize = forceResize || previous?.size != frame.size
+        let move = previous?.origin != frame.origin
+        if forceResize || previous == nil || (resize && move && repairClamping) {
+            // Size first so the move isn't clamped by the screen edge, then size again
+            // in case the original size prevented the window from fitting at the new position.
+            return [.size(frame.size), .position(frame.origin), .size(frame.size)]
+        }
+        if resize && move { return [.size(frame.size), .position(frame.origin)] }
+        if resize { return [.size(frame.size)] }
+        if move { return [.position(frame.origin)] }
+        return []
+    }
+
+    @discardableResult
+    func setFrame(_ frame: CGRect, from previous: CGRect? = nil, forceResize: Bool = false,
+                  repairClamping: Bool = true) -> Bool {
+        var succeeded = true
+        for change in Self.frameChanges(to: frame, from: previous, forceResize: forceResize, repairClamping: repairClamping) {
+            let written: Bool
+            switch change {
+            case .position(let position):
+                written = element.setAXValue(position, of: kAXPositionAttribute, type: .cgPoint)
+            case .size(let size):
+                written = element.setAXValue(size, of: kAXSizeAttribute, type: .cgSize)
+            }
+            if !written { succeeded = false }
+        }
+        return succeeded
     }
 
     func focus() {
@@ -105,9 +135,9 @@ extension AXUIElement {
         return pointer.pointee
     }
 
-    func setAXValue<T: BitwiseCopyable>(_ value: T, of attribute: String, type: AXValueType) {
+    func setAXValue<T: BitwiseCopyable>(_ value: T, of attribute: String, type: AXValueType) -> Bool {
         var value = value
-        guard let axValue = AXValueCreate(type, &value) else { return }
-        AXUIElementSetAttributeValue(self, attribute as CFString, axValue)
+        guard let axValue = AXValueCreate(type, &value) else { return false }
+        return AXUIElementSetAttributeValue(self, attribute as CFString, axValue) == .success
     }
 }

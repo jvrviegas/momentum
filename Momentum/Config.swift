@@ -173,6 +173,9 @@ struct KeyCombo: Hashable, Codable, CustomStringConvertible {
 struct Config: Codable, Equatable {
     var gap: Double = 8
     var outerPadding: Double = 8
+    var animationsEnabled = true
+    /// Opt-in exception for Momentum only; never changes the macOS accessibility preference.
+    var ignoreReduceMotion = false
     var floatingBundleIDs: [String] = ["com.apple.systempreferences"]
     /// A `nil` value means the user explicitly unbound the action (stored as `null` in JSON).
     var bindings: [Action: KeyCombo?] = Config.defaultBindings
@@ -196,6 +199,10 @@ struct Config: Codable, Equatable {
     /// Allowed values for `gap` and `outerPadding`, in points.
     static let spacingRange: ClosedRange<Double> = 0...100
 
+    func shouldAnimate(reduceMotion: Bool) -> Bool {
+        animationsEnabled && (ignoreReduceMotion || !reduceMotion)
+    }
+
     init() {}
 
     init(from decoder: Decoder) throws {
@@ -212,6 +219,8 @@ struct Config: Codable, Equatable {
         }
         gap = try spacing(.gap) ?? defaults.gap
         outerPadding = try spacing(.outerPadding) ?? defaults.outerPadding
+        animationsEnabled = try container.decodeIfPresent(Bool.self, forKey: .animationsEnabled) ?? defaults.animationsEnabled
+        ignoreReduceMotion = try container.decodeIfPresent(Bool.self, forKey: .ignoreReduceMotion) ?? defaults.ignoreReduceMotion
         floatingBundleIDs = try container.decodeIfPresent([String].self, forKey: .floatingBundleIDs) ?? defaults.floatingBundleIDs
         let decodedBindings = try container.decodeIfPresent([Action: KeyCombo?].self, forKey: .bindings) ?? [:]
         // Actions missing from the file (e.g. added in a newer version) get their default hotkey.
