@@ -312,5 +312,3 @@ Application changes since the previous review are confined to the owner-selected
 - **Blockers remaining:** 0
 - **Optional recommendations:** 0
 - **Recommendation:** The feature can proceed to merge. Keep the VoiceOver exception and OS safety limitations visible; do not describe this local/source-preview acceptance as a notarized public release.
-
-
