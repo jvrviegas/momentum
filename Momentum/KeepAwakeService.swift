@@ -70,7 +70,7 @@ struct TaskKeepAwakeScheduler: KeepAwakeScheduler {
         do {
             let preferences = store.config.keepAwake
             let additions = try assertions.prepare(preferences.mode)
-            assertions.commit(additions, mode: preferences.mode)
+            try assertions.commit(additions, mode: preferences.mode)
             currentTime = now()
             mode = preferences.mode
             deadline = preferences.duration.seconds.map { currentTime + $0 }
@@ -137,15 +137,15 @@ struct TaskKeepAwakeScheduler: KeepAwakeScheduler {
         preferences.mode = newMode
         do {
             let additions = isActive && !isSuspended ? try assertions.prepare(newMode) : [:]
-            do { try store.updateKeepAwake(preferences) }
-            catch {
+            do {
+                try store.updateKeepAwake(preferences) {
+                    if isActive && !isSuspended { try assertions.commit(additions, mode: newMode) }
+                }
+            } catch {
                 assertions.rollback(additions)
                 throw PowerAssertionError(message: [error.localizedDescription, assertions.cleanupError].compactMap { $0 }.joined(separator: " "))
             }
-            if isActive {
-                if !isSuspended { assertions.commit(additions, mode: newMode) }
-                mode = newMode
-            }
+            if isActive { mode = newMode }
             clearError()
         } catch {
             self.error = error.localizedDescription
@@ -183,7 +183,7 @@ struct TaskKeepAwakeScheduler: KeepAwakeScheduler {
         reevaluate()
         guard !isShutdown, isActive, isSuspended, let mode else { return }
         do {
-            assertions.commit(try assertions.prepare(mode), mode: mode)
+            try assertions.commit(try assertions.prepare(mode), mode: mode)
             isSuspended = false
             clearError()
             scheduleNext()

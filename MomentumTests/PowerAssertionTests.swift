@@ -37,7 +37,7 @@ struct PowerAssertionTests {
         let client = FakePowerClient()
         client.live.insert(99) // An unrelated request must never be released.
         let owner = PowerAssertions(client: client)
-        owner.commit(try owner.prepare(.system), mode: .system)
+        try owner.commit(try owner.prepare(.system), mode: .system)
         #expect(client.creates == [.system])
         let old = owner.owned
         client.failCreateAt = 2
@@ -47,16 +47,40 @@ struct PowerAssertionTests {
         client.failCreateAt = nil
         let additions = try owner.prepare(.systemAndDisplay)
         #expect(owner.owned == old)
-        owner.commit(additions, mode: .systemAndDisplay)
+        try owner.commit(additions, mode: .systemAndDisplay)
         #expect(client.live == [1, 3, 99])
-        owner.commit(try owner.prepare(.systemAndDisplay), mode: .systemAndDisplay)
+        try owner.commit(try owner.prepare(.systemAndDisplay), mode: .systemAndDisplay)
         #expect(client.creates.count == 3)
-        owner.commit(try owner.prepare(.system), mode: .system)
+        try owner.commit(try owner.prepare(.system), mode: .system)
         #expect(client.releases == [3])
         owner.releaseAll()
         owner.releaseAll()
         #expect(client.releases == [3, 1])
         #expect(client.live == [99])
+    }
+
+    @Test func failedDowngradeRetainsWorkingDisplayOwnershipUntilRetryOrStop() throws {
+        let client = FakePowerClient()
+        let owner = PowerAssertions(client: client)
+        try owner.commit(try owner.prepare(.systemAndDisplay), mode: .systemAndDisplay)
+        let previous = owner.owned
+        client.releaseFailures = 2
+        #expect(throws: PowerAssertionError.self) {
+            try owner.commit(try owner.prepare(.system), mode: .system)
+        }
+        #expect(owner.owned == previous)
+        #expect(owner.pendingCleanup.isEmpty)
+        #expect(client.live == [1, 2])
+        #expect(client.releases == [2, 2])
+        owner.retryCleanup() // The working display ID is not orphaned cleanup.
+        #expect(client.releases == [2, 2])
+        #expect(try owner.prepare(.systemAndDisplay).isEmpty)
+        try owner.commit(try owner.prepare(.system), mode: .system)
+        #expect(owner.owned == [.system: 1])
+        #expect(client.live == [1])
+        #expect(client.releases == [2, 2, 2])
+        owner.releaseAll()
+        #expect(client.live.isEmpty)
     }
 
     @Test func failedFirstOrSecondCreationRollsBack() {
@@ -79,7 +103,7 @@ struct PowerAssertionTests {
     @Test func failedReleaseRetainsOwnershipWithBoundedRetry() throws {
         let client = FakePowerClient()
         let owner = PowerAssertions(client: client)
-        owner.commit(try owner.prepare(.system), mode: .system)
+        try owner.commit(try owner.prepare(.system), mode: .system)
         client.releaseFailures = 3
         owner.releaseAll()
         #expect(client.releases.count == 2)

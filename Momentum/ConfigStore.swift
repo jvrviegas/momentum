@@ -44,19 +44,33 @@ import Observation
         onChange = nil
     }
 
-    /// Keep Awake controls publish only after the candidate has been atomically saved.
-    func updateKeepAwake(_ preferences: KeepAwakePreferences) throws {
-        var candidate = config
+    /// Save before native completion, but publish only after both succeed. A failed
+    /// completion restores the previous file without exposing the candidate to observers.
+    func updateKeepAwake(_ preferences: KeepAwakePreferences, committing: () throws -> Void = {}) throws {
+        let previous = config
+        var candidate = previous
         candidate.keepAwake = preferences
-        guard candidate != config else { return }
+        let changed = candidate != previous
         do {
-            try write(candidate)
+            if changed { try write(candidate) }
+            do { try committing() }
+            catch {
+                let completionError = error
+                if changed {
+                    do { try write(previous) }
+                    catch {
+                        throw NSError(domain: "Momentum.ConfigStore", code: 1, userInfo: [NSLocalizedDescriptionKey:
+                            "\(completionError.localizedDescription) Couldn't restore \(location.lastPathComponent): \(error.localizedDescription)"])
+                    }
+                }
+                throw completionError
+            }
             lastError = nil
             isReloading = true
             config = candidate
             isReloading = false
         } catch {
-            lastError = "Couldn't save \(location.lastPathComponent): \(error.localizedDescription)"
+            lastError = "Couldn't update Keep Awake in \(location.lastPathComponent): \(error.localizedDescription)"
             throw error
         }
     }

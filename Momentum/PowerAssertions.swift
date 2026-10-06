@@ -71,12 +71,14 @@ final class PowerAssertions {
         }
     }
 
-    func commit(_ additions: [PowerAssertionKind: IOPMAssertionID], mode: KeepAwakeMode) {
-        owned.merge(additions) { old, _ in old }
-        for kind in PowerAssertionKind.allCases where !PowerAssertionKind.required(for: mode).contains(kind) {
-            if let id = owned.removeValue(forKey: kind) { pendingCleanup.insert(id) }
+    func commit(_ additions: [PowerAssertionKind: IOPMAssertionID], mode: KeepAwakeMode) throws {
+        // The only removal is display protection on downgrade. Keep it part of the
+        // working mode until release succeeds; cleanup Retry must not release it.
+        if mode == .system, let id = owned[.display] {
+            try releaseWithRetry(id)
+            owned.removeValue(forKey: .display)
         }
-        retryCleanup()
+        owned.merge(additions) { old, _ in old }
     }
 
     func rollback(_ additions: [PowerAssertionKind: IOPMAssertionID]) {
@@ -94,16 +96,16 @@ final class PowerAssertions {
     func retryCleanup() {
         cleanupError = nil
         for id in pendingCleanup.sorted() {
-            for _ in 0..<2 {
-                do {
-                    try client.release(id)
-                    pendingCleanup.remove(id)
-                    break
-                } catch {
-                    if pendingCleanup.contains(id) { cleanupError = error.localizedDescription }
-                }
-            }
+            do {
+                try releaseWithRetry(id)
+                pendingCleanup.remove(id)
+            } catch { cleanupError = error.localizedDescription }
         }
         if pendingCleanup.isEmpty { cleanupError = nil }
+    }
+
+    private func releaseWithRetry(_ id: IOPMAssertionID) throws {
+        do { try client.release(id) }
+        catch { try client.release(id) }
     }
 }

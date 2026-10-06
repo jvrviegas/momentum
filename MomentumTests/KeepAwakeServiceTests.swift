@@ -152,6 +152,80 @@ struct KeepAwakeServiceTests {
         #expect(f.service.error != nil)
     }
 
+    @Test func failedDowngradePreservesRuntimeDiskOwnershipAndRetryIntent() throws {
+        for rememberedMode in KeepAwakeMode.allCases {
+            let f = KeepAwakeFixture()
+            defer { f.cleanup() }
+            try f.config.store.updateKeepAwake(.init(mode: .systemAndDisplay))
+            f.service.start()
+            // Defaults may already differ from the running session after an external edit.
+            try f.config.store.updateKeepAwake(.init(duration: .oneHour, mode: rememberedMode))
+            let preferences = f.config.store.config.keepAwake
+            let deadline = f.service.deadline
+            var changes = 0
+            f.config.store.onChange = { _ in changes += 1 }
+            f.client.releaseFailures = 2
+            f.service.changeMode(.system)
+            #expect(f.service.mode == .systemAndDisplay)
+            #expect(f.service.deadline == deadline)
+            #expect(f.config.store.config.keepAwake == preferences)
+            let disk = try JSONDecoder().decode(Config.self, from: Data(contentsOf: f.config.store.location))
+            #expect(disk.keepAwake == preferences)
+            #expect(changes == 0)
+            #expect(f.client.live == [1, 2])
+            #expect(f.client.releases == [2, 2])
+            #expect(f.service.retryMode == .system)
+            #expect(f.service.error != nil)
+            f.time += 100
+            f.service.retry()
+            #expect(f.service.mode == .system)
+            #expect(f.service.deadline == deadline)
+            #expect(f.config.store.config.keepAwake == .init(duration: .oneHour, mode: .system))
+            let saved = try JSONDecoder().decode(Config.self, from: Data(contentsOf: f.config.store.location))
+            #expect(saved.keepAwake == f.config.store.config.keepAwake)
+            #expect(changes == (rememberedMode == .system ? 0 : 1))
+            #expect(f.client.live == [1])
+            #expect(f.client.releases == [2, 2, 2])
+            #expect(f.service.error == nil)
+        }
+    }
+
+    @Test func stopAfterFailedDowngradeStillReleasesBothOwnedRequests() throws {
+        let f = KeepAwakeFixture()
+        defer { f.cleanup() }
+        try f.config.store.updateKeepAwake(.init(mode: .systemAndDisplay))
+        f.service.start()
+        f.client.releaseFailures = 2
+        f.service.changeMode(.system)
+        #expect(f.service.mode == .systemAndDisplay)
+        f.service.stop()
+        #expect(!f.service.isActive)
+        #expect(f.client.live.isEmpty)
+        #expect(f.client.releases == [2, 2, 1, 2])
+        #expect(f.config.store.config.keepAwake.mode == .systemAndDisplay)
+        #expect(f.service.error == nil)
+        f.service.stop()
+        #expect(f.client.releases == [2, 2, 1, 2])
+    }
+
+    @Test func downgradeSaveFailureNeverReleasesWorkingDisplayRequest() throws {
+        let f = KeepAwakeFixture()
+        defer { f.cleanup() }
+        try f.config.store.updateKeepAwake(.init(mode: .systemAndDisplay))
+        f.service.start()
+        let deadline = f.service.deadline
+        try FileManager.default.removeItem(at: f.config.directory)
+        try Data().write(to: f.config.directory)
+        f.service.changeMode(.system)
+        #expect(f.service.mode == .systemAndDisplay)
+        #expect(f.service.deadline == deadline)
+        #expect(f.config.store.config.keepAwake.mode == .systemAndDisplay)
+        #expect(f.client.live == [1, 2])
+        #expect(f.client.releases.isEmpty)
+        #expect(f.service.retryMode == .system)
+        #expect(f.service.error != nil)
+    }
+
     @Test func sleepWakeUsesOriginalDeadlineAndExpiresBeforeAcquisition() throws {
         for duration in [KeepAwakeDuration.thirtyMinutes, .untilStopped] {
             let f = KeepAwakeFixture()

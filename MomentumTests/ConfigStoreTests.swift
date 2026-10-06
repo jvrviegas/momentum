@@ -76,6 +76,66 @@ struct ConfigStoreTests {
         #expect(changes == 1)
     }
 
+    @Test func failedCompletionRestoresDiskBeforeObserversOrLiveReload() async throws {
+        let fixture = TemporaryConfig(watching: true)
+        defer { fixture.cleanup() }
+        let store = fixture.store
+        let previous = store.config
+        let candidate = KeepAwakePreferences(mode: .systemAndDisplay)
+        var changes = 0
+        store.onChange = { _ in changes += 1 }
+        #expect(throws: PowerAssertionError.self) {
+            try store.updateKeepAwake(candidate) {
+                let disk = try JSONDecoder().decode(Config.self, from: Data(contentsOf: store.location))
+                #expect(disk.keepAwake == candidate) // Saved before attempting the native downgrade.
+                #expect(store.config == previous) // But not published optimistically.
+                throw PowerAssertionError(message: "Injected native completion failure")
+            }
+        }
+        #expect(store.config == previous)
+        #expect(store.lastError != nil)
+        #expect(changes == 0)
+        #expect(try JSONDecoder().decode(Config.self, from: Data(contentsOf: store.location)) == previous)
+        try await Task.sleep(for: .milliseconds(250))
+        #expect(store.config == previous)
+        #expect(changes == 0)
+        try store.updateKeepAwake(candidate) {
+            #expect(store.config == previous)
+        }
+        #expect(store.config.keepAwake == candidate)
+        #expect(changes == 1)
+    }
+
+    @Test func unchangedPreferenceStillCompletesNativeChange() throws {
+        let fixture = TemporaryConfig()
+        defer { fixture.cleanup() }
+        var calls = 0
+        var changes = 0
+        fixture.store.onChange = { _ in changes += 1 }
+        try fixture.store.updateKeepAwake(fixture.store.config.keepAwake) { calls += 1 }
+        #expect(calls == 1)
+        #expect(changes == 0)
+    }
+
+    @Test func failedFileRestorationReportsBothErrorsAndRetainsMemory() throws {
+        let fixture = TemporaryConfig()
+        defer { fixture.cleanup() }
+        let previous = fixture.store.config
+        var changes = 0
+        fixture.store.onChange = { _ in changes += 1 }
+        #expect(throws: NSError.self) {
+            try fixture.store.updateKeepAwake(.init(mode: .systemAndDisplay)) {
+                try FileManager.default.removeItem(at: fixture.directory)
+                try Data().write(to: fixture.directory)
+                throw PowerAssertionError(message: "Injected native completion failure")
+            }
+        }
+        #expect(fixture.store.config == previous)
+        #expect(changes == 0)
+        #expect(fixture.store.lastError?.contains("Injected native completion failure") == true)
+        #expect(fixture.store.lastError?.contains("Couldn't restore") == true)
+    }
+
     @Test func synchronousReloadNotifiesExistingEdits() throws {
         let fixture = TemporaryConfig()
         defer { fixture.cleanup() }
