@@ -175,7 +175,7 @@ Change bindings in **Settings**. Shortcut keys refer to physical US-layout key p
 
 Desktop numbers follow Mission Control order, excluding fullscreen Spaces. Destinations must already exist on the main display. If a move fails, the existing layout stays intact and an error appears in the menu and Settings.
 
-After waking from sleep, the macOS Dock can stop responding to the “Switch to Desktop N” shortcuts. When a switch is ignored, Momentum restarts the Dock once per wake, as `killall Dock` does, and switches again.
+After waking from sleep or connecting a display, the macOS Dock can stop responding to the “Switch to Desktop N” shortcuts. When a switch is ignored, Momentum restarts the Dock once per wake or display change, as `killall Dock` does, and switches again.
 
 ## Keep Awake
 

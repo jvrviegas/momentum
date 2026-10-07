@@ -50,8 +50,8 @@ enum SpaceMover {
     }
 
     /// Switches to Desktop `number` by triggering the system "Switch to Desktop N" shortcut.
-    /// After waking with the lid closed, displays reconfigure and the Dock can ignore these shortcuts until it
-    /// restarts. If the switch doesn't happen, `restartDock` is called and the shortcut is sent again.
+    /// When displays reconfigure, e.g. waking with the lid closed or connecting a monitor, the Dock can ignore these
+    /// shortcuts until it restarts. If the switch doesn't happen, `restartDock` is called and the shortcut is sent again.
     static func switchTo(desktop number: Int, restartDock: () async -> Bool) async {
         guard let shortcut = desktopShortcut(number) else { return }
         // A private event source isn't combined with the keys the user is still holding,
