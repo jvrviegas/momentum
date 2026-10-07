@@ -33,7 +33,8 @@ import QuartzCore
     @ObservationIgnored private var isTrackingDrag = false
     /// Set when the tracked drag resized the window rather than only moving it.
     @ObservationIgnored private var dragResized = false
-    /// Allows one Dock restart per launch or wake, so a misjudged switch can't keep restarting it.
+    /// Allows one Dock restart per launch, wake or display connection change, so a misjudged switch can't keep
+    /// restarting it.
     @ObservationIgnored private var mayRestartDock = true
 
     init(configStore: ConfigStore) {
@@ -50,11 +51,20 @@ import QuartzCore
         observer.onEvent = { [weak self] in self?.scheduleRefresh() }
         observer.onUserDrag = { [weak self] window, isResize in self?.trackDrag(of: window, isResize: isResize) }
         observer.start()
-        // The Dock can stop handling Desktop shortcuts after a wake. Screen changes aren't used: restarting the
-        // Dock changes the visible frame, which would allow another restart.
+        // The Dock can stop handling Desktop shortcuts after a wake or a display connecting or disconnecting.
+        // Other screen changes don't count: restarting the Dock changes the visible frame, which would allow
+        // another restart.
         Task { [weak self] in
             for await _ in NSWorkspace.shared.notificationCenter.notifications(named: NSWorkspace.didWakeNotification) {
                 self?.mayRestartDock = true
+            }
+        }
+        Task { [weak self] in
+            var displays = Self.displayIDs
+            for await _ in NotificationCenter.default.notifications(named: NSApplication.didChangeScreenParametersNotification) {
+                let current = Self.displayIDs
+                if current != displays { self?.mayRestartDock = true }
+                displays = current
             }
         }
         refresh()
@@ -234,6 +244,11 @@ import QuartzCore
         if floating.contains(window.id) { return true }
         guard let bundleID = NSRunningApplication(processIdentifier: window.pid)?.bundleIdentifier else { return false }
         return config.floatingBundleIDs.contains(bundleID)
+    }
+
+    /// The active displays. Restarting the Dock doesn't change these.
+    private static var displayIDs: Set<NSNumber> {
+        Set(NSScreen.screens.compactMap { $0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber })
     }
 
     /// The primary display's frame in top-left origin (Accessibility) coordinates.
