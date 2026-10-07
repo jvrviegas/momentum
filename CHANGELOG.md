@@ -2,6 +2,19 @@
 
 Notable changes to Momentum are documented here. Versions follow Semantic Versioning; `0.x` releases are early-stage and may change before stabilization.
 
+## [0.3.1] - 2026-10-07
+
+Source-only prerelease; a Developer ID-signed, notarized installer is not yet available.
+
+### Fixed
+
+- Desktop switching recovers when the macOS Dock stops responding to the “Switch to Desktop N” shortcuts, such as after waking with the lid closed or connecting a display. When a switch is ignored, Momentum restarts the Dock once and switches again. A restart is allowed once per launch, wake, or display being connected or disconnected.
+
+### Compatibility
+
+- The first switch after the Dock gets stuck takes about 2 seconds, and the Dock briefly restarts.
+- Verified on macOS 27.0.1 after a lid-closed wake and after reconnecting a monitor.
+
 ## [0.3.0] - 2026-10-06
 
 Source-only prerelease; a Developer ID-signed, notarized installer is not yet available.
