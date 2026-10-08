@@ -175,7 +175,7 @@ Change bindings in **Settings**. Shortcut keys refer to physical US-layout key p
 
 Desktop numbers follow Mission Control order, excluding fullscreen Spaces. Destinations must already exist on the main display. If a move fails, the existing layout stays intact and an error appears in the menu and Settings.
 
-After waking from sleep or connecting a display, the macOS Dock can stop responding to the “Switch to Desktop N” shortcuts. When a switch is ignored, Momentum restarts the Dock once per wake or display change, as `killall Dock` does, and switches again.
+After waking from sleep or connecting a display, the macOS Dock can stop responding to the “Switch to Desktop N” shortcuts. Momentum retries an ignored switch up to three times without restarting the Dock. If it still fails, the menu shows an error and offers **Restart Dock…** with a confirmation warning: restarting the Dock may restore minimized windows and disrupt your desktop. Recovery is never automatic; after confirming a restart, try your desktop shortcut again.
 
 ## Keep Awake
 

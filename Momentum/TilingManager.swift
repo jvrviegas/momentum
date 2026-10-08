@@ -12,6 +12,9 @@ import QuartzCore
     }
     private(set) var isTrusted = false
     private(set) var lastDesktopMoveError: String?
+    private(set) var lastDesktopSwitchError: String?
+    private(set) var isRecoveringDock = false
+    private(set) var canRecoverDesktopSwitching = false
 
     @ObservationIgnored private let configStore: ConfigStore
     @ObservationIgnored private let observer = WindowObserver()
@@ -33,9 +36,7 @@ import QuartzCore
     @ObservationIgnored private var isTrackingDrag = false
     /// Set when the tracked drag resized the window rather than only moving it.
     @ObservationIgnored private var dragResized = false
-    /// Allows one Dock restart per launch, wake or display connection change, so a misjudged switch can't keep
-    /// restarting it.
-    @ObservationIgnored private var mayRestartDock = true
+    @ObservationIgnored private var desktopSwitchTask: Task<Void, Never>?
 
     init(configStore: ConfigStore) {
         self.configStore = configStore
@@ -51,22 +52,6 @@ import QuartzCore
         observer.onEvent = { [weak self] in self?.scheduleRefresh() }
         observer.onUserDrag = { [weak self] window, isResize in self?.trackDrag(of: window, isResize: isResize) }
         observer.start()
-        // The Dock can stop handling Desktop shortcuts after a wake or a display connecting or disconnecting.
-        // Other screen changes don't count: restarting the Dock changes the visible frame, which would allow
-        // another restart.
-        Task { [weak self] in
-            for await _ in NSWorkspace.shared.notificationCenter.notifications(named: NSWorkspace.didWakeNotification) {
-                self?.mayRestartDock = true
-            }
-        }
-        Task { [weak self] in
-            var displays = Self.displayIDs
-            for await _ in NotificationCenter.default.notifications(named: NSApplication.didChangeScreenParametersNotification) {
-                let current = Self.displayIDs
-                if current != displays { self?.mayRestartDock = true }
-                displays = current
-            }
-        }
         refresh()
     }
 
@@ -80,6 +65,24 @@ import QuartzCore
 
     func dismissDesktopMoveError() {
         lastDesktopMoveError = nil
+    }
+
+    func dismissDesktopSwitchError() {
+        lastDesktopSwitchError = nil
+        canRecoverDesktopSwitching = false
+    }
+
+    /// Only called after the menu's destructive-action confirmation; never from a shortcut timeout.
+    func recoverDesktopSwitching() async {
+        guard canRecoverDesktopSwitching, !isRecoveringDock, !isSuspended else { return }
+        desktopSwitchTask?.cancel()
+        isRecoveringDock = true
+        defer { isRecoveringDock = false }
+        if await SpaceMover.restartDock() {
+            dismissDesktopSwitchError()
+        } else {
+            lastDesktopSwitchError = "The Dock couldn't be restarted. Try again or restart it manually."
+        }
     }
 
     // MARK: - Layout
@@ -246,11 +249,6 @@ import QuartzCore
         return config.floatingBundleIDs.contains(bundleID)
     }
 
-    /// The active displays. Restarting the Dock doesn't change these.
-    private static var displayIDs: Set<NSNumber> {
-        Set(NSScreen.screens.compactMap { $0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber })
-    }
-
     /// The primary display's frame in top-left origin (Accessibility) coordinates.
     private var mainScreenFrame: CGRect? {
         guard let screen = NSScreen.screens.first else { return nil }
@@ -278,12 +276,26 @@ import QuartzCore
 
     func perform(_ action: Action) {
         // Serialize commands while a native Desktop move is awaiting confirmation.
-        guard isTrusted, !isSuspended else { return }
+        guard isTrusted, !isSuspended, !isRecoveringDock else { return }
         switch action {
         case .sendToDesktop(let number): sendToDesktop(number)
         case .switchToDesktop(let number):
             cancelAnimation()
-            Task { await SpaceMover.switchTo(desktop: number, restartDock: restartDockOnce) }
+            desktopSwitchTask?.cancel()
+            dismissDesktopSwitchError()
+            desktopSwitchTask = Task { [weak self] in
+                let result = await SpaceMover.switchTo(desktop: number)
+                guard !Task.isCancelled, let self else { return }
+                switch result {
+                case .timedOut:
+                    canRecoverDesktopSwitching = true
+                    lastDesktopSwitchError = "Desktop switching didn't respond after three attempts. You can restart the Dock manually to recover it."
+                case .shortcutUnavailable:
+                    lastDesktopSwitchError = "Enable the Switch to Desktop \(number) shortcut in System Settings → Keyboard → Keyboard Shortcuts → Mission Control."
+                case .completed, .unchecked, .cancelled:
+                    break
+                }
+            }
         // The other commands act on the layout, which isn't maintained while tiling is off.
         case _ where !isEnabled: break
         case .focus(let direction): focus(direction)
@@ -292,12 +304,6 @@ import QuartzCore
         case .retile: retile()
         case .toggleKeepAwake: break // Routed by AppController, never an AX action.
         }
-    }
-
-    private func restartDockOnce() async -> Bool {
-        guard mayRestartDock else { return false }
-        mayRestartDock = false
-        return await SpaceMover.restartDock()
     }
 
     private func focus(_ direction: Direction) {
@@ -325,6 +331,7 @@ import QuartzCore
 
     private func sendToDesktop(_ number: Int) {
         guard let window = focusedWindow else { return }
+        desktopSwitchTask?.cancel()
         refreshTask?.cancel()
         cancelAnimation()
 

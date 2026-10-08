@@ -117,47 +117,93 @@ struct SpaceMoverTests {
         #expect(SpaceMover.desktopShortcut(10, symbolicHotKeys: nil) == nil)
     }
 
-    @Test func switchToTheShowingOrAMissingDesktopIsntChecked() async {
+    @Test func switchToTheShowingOrAMissingDesktopIsntRetried() async {
         for target: SpaceID? in [1, nil] {
             var sent = 0
-            var restarts = 0
-            await SpaceMover.switchTo(target, send: { sent += 1 }, restartDock: { restarts += 1; return true },
-                                      currentSpaces: { [1] }, wait: {})
-            #expect(sent == 1 && restarts == 0)
+            var waits = 0
+            let result = await SpaceMover.switchTo(target, send: { sent += 1 },
+                                                  currentSpaces: { [1] }, wait: { waits += 1 })
+            #expect(sent == 1 && waits == 0)
+            #expect(result == (target == nil ? .unchecked : .completed))
         }
     }
 
-    @Test func switchThatChangesASpaceDoesntRestartTheDock() async {
+    @Test func successfulSwitchIsntRetried() async {
         var spaces: Set<SpaceID> = [1]
-        var restarts = 0
-        await SpaceMover.switchTo(2, send: { spaces = [2] }, restartDock: { restarts += 1; return true },
-                                  currentSpaces: { spaces }, wait: {})
-        #expect(restarts == 0)
-    }
-
-    @Test func ignoredSwitchRestartsTheDockAndResendsUntilASpaceChanges() async {
-        var spaces: Set<SpaceID> = [1]
-        var dockRestarted = false
-        var sentAfterRestart = 0
-        await SpaceMover.switchTo(2, send: {
-            guard dockRestarted else { return }
-            // The relaunched Dock ignores the first resend, as if it were still starting.
-            sentAfterRestart += 1
-            if sentAfterRestart == 2 { spaces = [2] }
-        }, restartDock: { dockRestarted = true; return true }, currentSpaces: { spaces }, wait: {})
-        #expect(spaces == [2] && sentAfterRestart == 2)
-    }
-
-    @Test func ignoredSwitchIsntResentWithoutADockRestart() async {
         var sent = 0
-        await SpaceMover.switchTo(2, send: { sent += 1 }, restartDock: { false }, currentSpaces: { [1] }, wait: {})
+        let result = await SpaceMover.switchTo(2, send: { sent += 1; spaces = [2] },
+                                              currentSpaces: { spaces }, wait: {})
+        #expect(result == .completed)
         #expect(sent == 1)
     }
 
-    @Test func switchStillIgnoredAfterADockRestartGivesUp() async {
-        var restarts = 0
-        await SpaceMover.switchTo(2, send: {}, restartDock: { restarts += 1; return true }, currentSpaces: { [1] }, wait: {})
-        #expect(restarts == 1)
+    @Test func ignoredSwitchRetriesWithoutRestartingTheDock() async {
+        var sent = 0
+        var waits = 0
+        let result = await SpaceMover.switchTo(2, send: { sent += 1 },
+                                              currentSpaces: { [1] }, wait: { waits += 1 })
+        // No Dock-restart dependency exists in the switching path anymore.
+        #expect(result == .timedOut)
+        #expect(sent == 3 && waits == 60)
+    }
+
+    @Test func retryStopsOnceASpaceChanges() async {
+        for successfulAttempt in [2, 3] {
+            var spaces: Set<SpaceID> = [1]
+            var sent = 0
+            let result = await SpaceMover.switchTo(2, send: {
+                sent += 1
+                if sent == successfulAttempt { spaces = [2] }
+            }, currentSpaces: { spaces }, wait: {})
+            #expect(result == .completed)
+            #expect(sent == successfulAttempt)
+        }
+    }
+
+    @Test func switchOnAnotherDisplayAlsoStopsRetries() async {
+        var spaces: Set<SpaceID> = [1, 10]
+        var sent = 0
+        let result = await SpaceMover.switchTo(2, send: { sent += 1 },
+                                              currentSpaces: { spaces }, wait: { spaces = [1, 11] })
+        #expect(result == .completed)
+        #expect(sent == 1)
+    }
+
+    @Test func cancelledSwitchDoesntSendAnything() async {
+        var sent = 0
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return await SpaceMover.switchTo(2, send: { sent += 1 }, currentSpaces: { [1] }, wait: {})
+        }
+        #expect(await task.value == .cancelled)
+        #expect(sent == 0)
+    }
+
+    @Test func cancellationDuringPollingStopsRetries() async {
+        var sent = 0
+        var waits = 0
+        let task = Task {
+            await SpaceMover.switchTo(2, send: { sent += 1 }, currentSpaces: { [1] }, wait: {
+                waits += 1
+                withUnsafeCurrentTask { $0?.cancel() }
+            })
+        }
+        #expect(await task.value == .cancelled)
+        #expect(sent == 1 && waits == 1)
+    }
+
+    @Test func unavailableShortcutReportsFailureWithoutPostingEvents() async {
+        #expect(await SpaceMover.switchTo(desktop: 10) == .shortcutUnavailable)
+    }
+
+    @Test func recoveryIsUnavailableWithoutAFailedSwitch() async {
+        let store = AppEnvironment.makeConfigStore(testing: true)
+        defer { store.shutdown() }
+        let manager = TilingManager(configStore: store)
+        await manager.recoverDesktopSwitching()
+        #expect(!manager.canRecoverDesktopSwitching)
+        #expect(!manager.isRecoveringDock)
+        #expect(manager.lastDesktopSwitchError == nil)
     }
 }
 

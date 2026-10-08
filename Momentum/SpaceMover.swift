@@ -49,46 +49,55 @@ enum SpaceMover {
         throw MoveError.timedOut
     }
 
-    /// Switches to Desktop `number` by triggering the system "Switch to Desktop N" shortcut.
-    /// When displays reconfigure, e.g. waking with the lid closed or connecting a monitor, the Dock can ignore these
-    /// shortcuts until it restarts. If the switch doesn't happen, `restartDock` is called and the shortcut is sent again.
-    static func switchTo(desktop number: Int, restartDock: () async -> Bool) async {
-        guard let shortcut = desktopShortcut(number) else { return }
+    enum SwitchResult: Equatable {
+        case completed
+        case unchecked
+        case shortcutUnavailable
+        case timedOut
+        case cancelled
+    }
+
+    /// Switches using the system shortcut. Recovery must never silently restart the Dock:
+    /// terminating it restores minimized windows on some macOS builds.
+    static func switchTo(desktop number: Int) async -> SwitchResult {
+        guard let shortcut = desktopShortcut(number) else { return .shortcutUnavailable }
         // A private event source isn't combined with the keys the user is still holding,
         // so this can fire immediately without waiting for the hotkey's modifiers to be released.
         let source = CGEventSource(stateID: .privateState)
-        await switchTo(Spaces.desktopSpace(number), send: { post(shortcut, source: source) }, restartDock: restartDock)
+        return await switchTo(Spaces.desktopSpace(number), send: { post(shortcut, source: source) })
     }
 
     /// Dependencies allow tests without switching real Desktops.
     static func switchTo(
         _ target: SpaceID?,
         send: () -> Void,
-        restartDock: () async -> Bool,
         currentSpaces: () -> Set<SpaceID> = { Spaces.currentSpaces },
         wait: () async -> Void = { try? await Task.sleep(for: .milliseconds(50)) }
-    ) async {
+    ) async -> SwitchResult {
+        guard !Task.isCancelled else { return .cancelled }
         let before = currentSpaces()
         send()
-        // Only a Desktop that exists and isn't showing yet can show that the shortcut was ignored.
-        guard let target, !before.contains(target) else { return }
-        // Any display's Space changing counts, since Mission Control may number Desktops across displays.
-        func spacesChange(within polls: Int) async -> Bool {
-            for _ in 0..<polls {
-                await wait()
-                if currentSpaces() != before { return true }
+        // Unknown membership cannot prove failure; don't retry or report a false timeout.
+        guard let target else { return .unchecked }
+        guard !before.contains(target) else { return .completed }
+        // Bounded, non-destructive retries. Any display changing counts because Mission Control
+        // may number Desktops across displays. Stop if the user switches elsewhere too.
+        for attempt in 0..<3 {
+            if attempt > 0 {
+                guard !Task.isCancelled else { return .cancelled }
+                if currentSpaces() != before { return .completed }
+                send()
             }
-            return false
+            for _ in 0..<20 {
+                await wait()
+                guard !Task.isCancelled else { return .cancelled }
+                if currentSpaces() != before { return .completed }
+            }
         }
-        if await spacesChange(within: 20) { return }
-        guard await restartDock() else { return }
-        // The relaunched Dock may not handle shortcuts right away, so resend until a Space changes.
-        for _ in 0..<6 {
-            send()
-            if await spacesChange(within: 10) { return }
-        }
+        return .timedOut
     }
 
+    /// Explicit user-confirmed recovery only. Restores minimized windows on some macOS builds.
     /// Quits the Dock, as `killall Dock` does, and waits until launchd's relaunch has finished launching.
     static func restartDock() async -> Bool {
         let bundleID = "com.apple.dock"
