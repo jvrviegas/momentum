@@ -90,7 +90,7 @@ Update this checklist when implementation or validation changes a feature's stat
 - [x] Floating windows, app exclusions, and a menu-bar toggle to pause tiling.
 - [x] Configurable shortcuts through Settings and live-reloaded JSON.
 - [x] Animated layout transitions with Reduce Motion support.
-- [ ] Multi-display tiling beyond the main display.
+- [ ] **Awaiting validation:** multi-display tiling, cross-display focus and optional display-transfer shortcuts are implemented; 179 tests, 16 native checks and 19 owner-observed guarded-preview checks passed. Unrestricted real-app/startup validation and full-SIP compatibility remain pending.
 
 ### Keep work uninterrupted
 
@@ -125,7 +125,7 @@ The [landing page prototype](docs/landing/prototype.html) separates capabilities
 ## Get started
 
 > [!IMPORTANT]
-> Momentum is currently an **early-stage source preview**, not a finished distribution. Releases are source-only; a Developer ID-signed, notarized installer is not yet available. **Only the main display is tiled.**
+> Momentum is currently an **early-stage source preview**, not a finished distribution. Releases are source-only; a Developer ID-signed, notarized installer is not yet available. **Multi-display tiling passed the guarded two-display QA suite; unrestricted real-app/startup validation remains pending.** Shared-Spaces live validation was skipped by the owner; fully enabled SIP compatibility remains unverified.
 
 ### What you'll need
 
@@ -168,12 +168,21 @@ Use **Tiling Enabled** in the menu bar to pause or resume automatic tiling.
 | Swap a window left / down / up / right | <kbd>⌥</kbd> + <kbd>⇧</kbd> + <kbd>H</kbd> / <kbd>J</kbd> / <kbd>K</kbd> / <kbd>L</kbd> |
 | Switch to Desktop 1–9 | <kbd>⌥</kbd> + <kbd>1–9</kbd> |
 | Send the focused window to Desktop 1–9 | <kbd>⌥</kbd> + <kbd>⇧</kbd> + <kbd>1–9</kbd> |
+| Send the focused window to previous / next display | Unbound by default; configure in Settings |
 | Toggle the focused window's floating mode | <kbd>⌥</kbd> + <kbd>⇧</kbd> + <kbd>Space</kbd> |
 | Retile | <kbd>⌥</kbd> + <kbd>⇧</kbd> + <kbd>R</kbd> |
 
 Change bindings in **Settings**. Shortcut keys refer to physical US-layout key positions; the Settings UI displays the corresponding character for your current keyboard layout. Duplicate or unavailable bindings are flagged there.
 
-Desktop numbers follow Mission Control order, excluding fullscreen Spaces. Destinations must already exist on the main display. If a move fails, the existing layout stays intact and an error appears in the menu and Settings.
+Send-to-Desktop numbers follow normal Mission Control Desktop order **on the focused window's display**, excluding fullscreen Spaces; that ordinal can differ from macOS's global switching shortcut labels. Destinations must already exist. Same-Desktop sends are no-ops; failed/partial native moves reconcile actual state and show a dismissible menu/Settings error rather than assuming an atomic rollback.
+
+### Across your displays
+
+Each display/Desktop pair keeps an independent layout. Directional focus crosses an edge when no local tiled neighbor exists; swaps stay on the current display. Bind **Send window to previous/next display** to move windows through normal Desktop displays in physical center order, with wrapping and focus following only after confirmed placement. Fullscreen/unknown destinations are skipped; one eligible display is a no-op.
+
+Drag a tiled window across displays and release it to join the destination layout. Floating/excluded windows stay untiled; keyboard transfers keep their size where possible and clamp placement to usable bounds. Disconnect/reconnect follows macOS's actual relocation without Momentum actively moving windows back.
+
+Settings remain shared across displays. Source behavior and outstanding validation limits are in the [draft functional spec](docs/spec/multi-display-tiling.md) and [QA record](docs/qa/multi-display-tiling-validation.md).
 
 After waking from sleep or connecting a display, the macOS Dock can stop responding to the “Switch to Desktop N” shortcuts. Momentum retries an ignored switch up to three times without restarting the Dock. If it still fails, the menu shows an error and offers **Restart Dock…** with a confirmation warning: restarting the Dock may restore minimized windows and disrupt your desktop. Recovery is never automatic; after confirming a restart, try your desktop shortcut again.
 
@@ -218,7 +227,9 @@ The file is created automatically and reloaded when edited.
     "send-to-desktop-1": "alt+shift+1",
     "toggle-float": "alt+shift+space",
     "retile": "alt+shift+r",
-    "toggle-keep-awake": null
+    "toggle-keep-awake": null,
+    "send-to-previous-display": null,
+    "send-to-next-display": null
   }
 }
 ```
@@ -270,7 +281,8 @@ These commands use the project's signing settings; configure your development te
 | `Momentum/MyApp.swift`, `Momentum/MenuBarContent.swift` | App composition and native menu-bar popover |
 | `Momentum/AppController.swift` | Application action/config routing and lifecycle |
 | `Momentum/KeepAwakeService.swift`, `Momentum/PowerAssertions.swift` | Keep Awake sessions and native idle-sleep assertions |
-| `Momentum/TilingManager.swift` | Window management and per-Desktop layouts |
+| `Momentum/TilingManager.swift`, `Momentum/TilingEnvironment.swift` | Per-display/Desktop management and injectable native boundary |
+| `Momentum/DisplayTopology.swift`, `Momentum/DisplayLayoutState.swift`, `Momentum/DisplayMover.swift` | Geometry, layout state and verified display transfers |
 | `Momentum/BSPTree.swift` | BSP layout tree |
 | `Momentum/AXWindow.swift`, `Momentum/WindowObserver.swift` | Accessibility window control and observation |
 | `Momentum/WindowAnimation.swift` | Tiling animation logic |
@@ -288,7 +300,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for commit and release conventions. Distr
 <details>
 <summary><strong>Tiling, shortcuts, and Desktop moves</strong></summary>
 
-- **Windows are not tiling:** check Accessibility access, confirm **Tiling Enabled** is on, and make sure the windows are on the main display and not excluded or floating.
+- **Windows are not tiling:** check Accessibility access, confirm **Tiling Enabled** is on, and make sure the windows are on a mapped normal Desktop display and not excluded, floating, minimized or fullscreen.
 - **Desktop switching does nothing:** enable the matching Mission Control shortcuts in System Settings and confirm the destination Desktop exists.
 - **Sending a window fails:** check the move error in the menu or Settings. Native move compatibility can vary with macOS and SIP configuration.
 - **A shortcut does not work:** check Settings for a duplicate binding or a shortcut macOS refused to register.
