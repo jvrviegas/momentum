@@ -80,6 +80,11 @@ struct SettingsView: View {
                     .padding(.vertical, 4)
             }
             .listStyle(.sidebar)
+            .safeAreaInset(edge: .bottom, alignment: .leading, spacing: 0) {
+                AppVersionLabel()
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+            }
             .navigationSplitViewColumnWidth(min: 190, ideal: 200, max: 240)
             .navigationTitle("Momentum")
             .toolbar(removing: .sidebarToggle)

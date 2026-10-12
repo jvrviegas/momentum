@@ -19,15 +19,21 @@ struct KeepAwakePresentationTests {
         #expect(inactive.countdown == nil)
         #expect(inactive.showsDuration && !inactive.showsExtensions)
         #expect(inactive.status == "Inactive")
+        #expect(inactive.sessionTitle == "Ready to start")
+        #expect(inactive.actionTitle == "Start Keep Awake")
         f.service.start()
         let timed = KeepAwakePresentation(f.service)
         #expect(timed.iconName == "MenuBarAwakeIcon")
         #expect(timed.countdown == "30m")
         #expect(!timed.showsDuration && timed.showsExtensions)
         #expect(timed.status.contains("30 min remaining"))
+        #expect(timed.sessionTitle == "30 min remaining")
+        #expect(timed.actionTitle == "Stop Keep Awake")
         f.time = 1900
         f.scheduler.fireLatest()
         #expect(KeepAwakePresentation(f.service).iconName == "MenuBarIcon")
+        #expect(KeepAwakePresentation(f.service).sessionTitle == "Ready to start")
+        #expect(KeepAwakePresentation(f.service).actionTitle == "Start Keep Awake")
         try f.config.store.updateKeepAwake(.init(duration: .untilStopped))
         f.service.start()
         let indefinite = KeepAwakePresentation(f.service)
@@ -35,6 +41,8 @@ struct KeepAwakePresentationTests {
         #expect(indefinite.countdown == nil)
         #expect(!indefinite.showsDuration && !indefinite.showsExtensions)
         #expect(indefinite.status.contains("Until stopped"))
+        #expect(indefinite.sessionTitle == "Until stopped")
+        #expect(indefinite.actionTitle == "Stop Keep Awake")
     }
 
     @Test func retryReflectsFailedStartOrActiveModeChange() {
