@@ -54,6 +54,124 @@ enum Spaces {
         return id.uint64Value
     }
 
+    /// Parsed fixture contract, not a live mapping guarantee. Native callers remain unchanged until T1.
+    struct DisplaySnapshot: Equatable {
+        let identifier: String
+        let activeSpace: DisplayTopology.ActiveSpace?
+        let desktopSpaces: [SpaceID]
+    }
+
+    /// Strict display-local parsing: unlike the legacy main-display resolver, never falls back
+    /// to a different display. Shared mode must explicitly provide a normalized shared snapshot.
+    static func displaySnapshot(for identifier: String, in managed: [[String: Any]]) -> DisplaySnapshot? {
+        guard !identifier.isEmpty else { return nil }
+        let matches = managed.filter { ($0["Display Identifier"] as? String) == identifier }
+        guard matches.count == 1, let entry = matches.first,
+              let spaces = entry["Spaces"] as? [[String: Any]] else { return nil }
+        var kinds: [SpaceID: DisplayTopology.SpaceKind] = [:]
+        var types: [SpaceID: Int] = [:]
+        var desktops: [SpaceID] = []
+        for space in spaces {
+            guard let id = snapshotSpaceID(space["id64"]), kinds[id] == nil,
+                  let type = snapshotSpaceType(space["type"]) else { return nil }
+            types[id] = type
+            let kind: DisplayTopology.SpaceKind
+            switch type {
+            case 0: kind = .normal
+            case 4: kind = .fullscreen
+            default: kind = .unknown
+            }
+            kinds[id] = kind
+            if kind == .normal { desktops.append(id) }
+        }
+        var active: DisplayTopology.ActiveSpace?
+        if let current = entry["Current Space"] as? [String: Any],
+           let id = snapshotSpaceID(current["id64"]), let kind = kinds[id] {
+            // Missing type is compatible with existing fixtures. A supplied type must be valid
+            // and agree exactly; an inconsistent snapshot must never make a display eligible.
+            if current["type"] == nil || snapshotSpaceType(current["type"]) == types[id] {
+                active = .init(id: id, kind: kind)
+            }
+        }
+        return DisplaySnapshot(identifier: identifier, activeSpace: active, desktopSpaces: desktops)
+    }
+
+    /// Explicit normalized input also supports shared Spaces without guessing its private snapshot schema.
+    static func desktopSpace(_ number: Int, in display: DisplaySnapshot) -> SpaceID? {
+        guard (1...9).contains(number), display.desktopSpaces.indices.contains(number - 1) else { return nil }
+        let id = display.desktopSpaces[number - 1]
+        return id == 0 ? nil : id
+    }
+
+    private static func snapshotSpaceType(_ value: Any?) -> Int? {
+        guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(),
+              number == NSNumber(value: number.intValue) else { return nil }
+        return number.intValue
+    }
+
+    private static func snapshotSpaceID(_ value: Any?) -> SpaceID? {
+        guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
+        let id = number.uint64Value
+        guard id != 0, number == NSNumber(value: id) else { return nil }
+        return id
+    }
+
+    struct ScreenInput {
+        let id: DisplayID
+        let identifier: String
+        let frame: CGRect
+        let visibleFrame: CGRect
+    }
+
+    struct DisplayInventory {
+        let topology: DisplayTopology
+        let desktops: [DisplayID: DisplaySnapshot]
+    }
+
+    /// One consistent set of screen geometry and managed-Space records per refresh/command.
+    static func displayInventory() -> DisplayInventory {
+        let screens = NSScreen.screens
+        guard let primary = screens.first else {
+            return DisplayInventory(topology: DisplayTopology(displays: []), desktops: [:])
+        }
+        let inputs = screens.compactMap { screen -> ScreenInput? in
+            guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber,
+                  let uuid = CGDisplayCreateUUIDFromDisplayID(number.uint32Value)?.takeRetainedValue() else { return nil }
+            return ScreenInput(id: number.uint32Value, identifier: CFUUIDCreateString(nil, uuid) as String,
+                               frame: screen.frame, visibleFrame: screen.visibleFrame)
+        }
+        let managed = MomentumCopyManagedDisplaySpaces(CGSMainConnectionID()) as? [[String: Any]] ?? []
+        return inventory(screens: inputs, primaryFrame: primary.frame, managed: managed,
+                         separateSpaces: NSScreen.screensHaveSeparateSpaces, sharedSpace: CGSGetActiveSpace(CGSMainConnectionID()))
+    }
+
+    /// Shared mode reuses the legacy active-Space matching strategy, but accepts only an
+    /// unambiguous normalized snapshot. Its live OS shape remains unvalidated, not guessed.
+    static func inventory(screens: [ScreenInput], primaryFrame: CGRect, managed: [[String: Any]],
+                          separateSpaces: Bool, sharedSpace: SpaceID) -> DisplayInventory {
+        let parsed = managed.compactMap { entry -> DisplaySnapshot? in
+            guard let identifier = entry["Display Identifier"] as? String else { return nil }
+            return displaySnapshot(for: identifier, in: managed)
+        }
+        let sharedCandidates = parsed.filter { $0.activeSpace?.id == sharedSpace }
+        let shared = sharedCandidates.first.flatMap { first in
+            sharedCandidates.allSatisfy {
+                $0.activeSpace == first.activeSpace && $0.desktopSpaces == first.desktopSpaces
+            } ? first : nil
+        }
+        var desktops: [DisplayID: DisplaySnapshot] = [:]
+        let displays = screens.map { screen -> DisplayTopology.Display in
+            let snapshot = separateSpaces ? displaySnapshot(for: screen.identifier, in: managed) : shared
+            desktops[screen.id] = snapshot
+            return .init(id: screen.id, frame: DisplayTopology.axFrame(fromAppKit: screen.frame, primaryFrame: primaryFrame),
+                         usableFrame: DisplayTopology.axFrame(fromAppKit: screen.visibleFrame, primaryFrame: primaryFrame),
+                         activeSpace: snapshot?.activeSpace)
+        }
+        let topology = DisplayTopology(displays: displays)
+        desktops = desktops.filter { entry in topology.displays.contains { $0.id == entry.key } }
+        return DisplayInventory(topology: topology, desktops: desktops)
+    }
+
     /// The Space that `window` lives on.
     static func space(for window: WindowID) -> SpaceID? {
         let spaces = CGSCopySpacesForWindows(CGSMainConnectionID(), allSpacesMask, [window] as CFArray) as? [NSNumber]

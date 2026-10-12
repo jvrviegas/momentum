@@ -40,7 +40,7 @@ struct SettingsView: View {
             } header: {
                 Text("Layout")
             } footer: {
-                Text("Animations use a 200 ms ease-out transition. Reduce Motion is respected unless you enable the Momentum-only override above; your system setting stays unchanged. Smoothness varies by app. Only the main display is tiled. Turn off \"Drag windows to screen edges to tile\" in System Settings › Desktop & Dock so macOS's own tiling doesn't compete with Momentum.")
+                Text("Animations use a 200 ms ease-out transition. Reduce Motion is respected unless you enable the Momentum-only override above; your system setting stays unchanged. Smoothness varies by app. Each normal Desktop display has its own layout and display-synchronized animation. Turn off \"Drag windows to screen edges to tile\" in System Settings › Desktop & Dock so macOS's own tiling doesn't compete with Momentum.")
             }
 
             Section("Floating apps") {
@@ -97,7 +97,9 @@ struct SettingsView: View {
                 Text("Hotkeys")
             } footer: {
                 Text("""
-                    Sending moves the window directly to an existing Desktop on the main display without switching Desktops or moving the cursor. Native moves use an unsupported macOS API and may stop working after a system update. Only switching uses the "Switch to Desktop N" shortcuts, which must be turned on in System Settings › Keyboard › Keyboard Shortcuts › Mission Control.
+                    Send to Desktop N uses the Nth normal Desktop on the focused window’s display, without switching Desktops or moving the cursor. This per-display order may differ from macOS’s global Desktop shortcut labels. Previous/next-display shortcuts are unbound by default; they wrap through normal Desktop displays in physical order and follow the moved window. Fullscreen destinations are skipped.
+
+                    Native moves use an unsupported macOS API and may stop working after a system update. Fully enabled SIP and end-to-end multi-display behavior still await validation. Shared-Spaces live tests were skipped. Only Desktop switching uses macOS’s "Switch to Desktop N" shortcuts, which must be enabled in System Settings › Keyboard › Keyboard Shortcuts › Mission Control.
 
                     Shortcuts follow key positions, so they work on any keyboard layout; the config file names keys by their US-layout position. On some layouts ⌥ combinations type characters (on German, ⌥L types @), so rebind any you need for typing.
                     """)

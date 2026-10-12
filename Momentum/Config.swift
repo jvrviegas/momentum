@@ -10,6 +10,8 @@ enum Action: Hashable, CaseIterable, RawRepresentable, Codable, CodingKeyReprese
     case toggleFloat
     case retile
     case toggleKeepAwake
+    case sendToPreviousDisplay
+    case sendToNextDisplay
 
     static var allCases: [Action] {
         Direction.allCases.map(Action.focus)
@@ -17,6 +19,7 @@ enum Action: Hashable, CaseIterable, RawRepresentable, Codable, CodingKeyReprese
             + (1...9).map(Action.sendToDesktop)
             + (1...9).map(Action.switchToDesktop)
             + [.toggleFloat, .retile, .toggleKeepAwake]
+            + [.sendToPreviousDisplay, .sendToNextDisplay]
     }
 
     init?(rawValue: String) {
@@ -34,6 +37,8 @@ enum Action: Hashable, CaseIterable, RawRepresentable, Codable, CodingKeyReprese
         case .toggleFloat: "toggle-float"
         case .retile: "retile"
         case .toggleKeepAwake: "toggle-keep-awake"
+        case .sendToPreviousDisplay: "send-to-previous-display"
+        case .sendToNextDisplay: "send-to-next-display"
         }
     }
 
@@ -46,6 +51,8 @@ enum Action: Hashable, CaseIterable, RawRepresentable, Codable, CodingKeyReprese
         case .toggleFloat: "Toggle floating"
         case .retile: "Retile"
         case .toggleKeepAwake: "Toggle Keep Awake"
+        case .sendToPreviousDisplay: "Send window to previous display"
+        case .sendToNextDisplay: "Send window to next display"
         }
     }
 }

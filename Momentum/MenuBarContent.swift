@@ -53,6 +53,7 @@ struct MenuBarContent: View {
     let keepAwake: KeepAwakeService
     let updaterController: SPUStandardUpdaterController?
     @Environment(\.openSettings) private var openSettings
+    @State private var confirmsDockRestart = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -63,6 +64,17 @@ struct MenuBarContent: View {
             if let error = manager.lastDesktopMoveError {
                 Text(error).font(.caption).foregroundStyle(.red)
                 Button("Dismiss Move Error") { manager.dismissDesktopMoveError() }
+            }
+            if let error = manager.lastDesktopSwitchError {
+                Text(error).font(.caption).foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+                if manager.canRecoverDesktopSwitching {
+                    Button(manager.isRecoveringDock ? "Restarting Dock…" : "Restart Dock…") {
+                        confirmsDockRestart = true
+                    }
+                    .disabled(manager.isRecoveringDock)
+                }
+                Button("Dismiss Switch Error") { manager.dismissDesktopSwitchError() }
             }
             Divider()
             Button("Settings…") {
@@ -79,6 +91,14 @@ struct MenuBarContent: View {
         }
         .padding(16)
         .frame(width: 320)
+        .alert("Restart the Dock?", isPresented: $confirmsDockRestart) {
+            Button("Cancel", role: .cancel) {}
+            Button("Restart Dock", role: .destructive) {
+                Task { await manager.recoverDesktopSwitching() }
+            }
+        } message: {
+            Text("Restarting the Dock may restore minimized windows and disrupt your desktop. After it restarts, try switching desktops again.")
+        }
     }
 
     private var keepAwakeControls: some View {

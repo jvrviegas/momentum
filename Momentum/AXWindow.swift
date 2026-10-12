@@ -42,6 +42,14 @@ struct AXWindow {
         return CGRect(origin: position, size: size)
     }
 
+    /// WindowServer geometry is sampled independently when verifying an asynchronous native transfer.
+    static func serverFrame(for id: WindowID) -> CGRect? {
+        guard let entries = CGWindowListCopyWindowInfo(.optionIncludingWindow, id) as? [[String: Any]],
+              let entry = entries.first(where: { ($0[kCGWindowNumber as String] as? WindowID) == id }),
+              let bounds = entry[kCGWindowBounds as String] as? [String: Any] else { return nil }
+        return CGRect(dictionaryRepresentation: bounds as CFDictionary)
+    }
+
     enum FrameChange: Equatable {
         case position(CGPoint)
         case size(CGSize)

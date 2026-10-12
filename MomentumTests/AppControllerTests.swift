@@ -133,6 +133,39 @@ struct AppControllerTests {
         #expect(keys.registrations.last?[.toggleKeepAwake] == KeyCombo(string: "ctrl+alt+a"))
     }
 
+    @Test func displayActionsRouteToTilingWithoutNativeHotkeysOrPowerChanges() {
+        let f = KeepAwakeFixture()
+        defer { f.cleanup() }
+        let keys = FakeHotKeys()
+        var actions: [Action] = []
+        let controller = AppController(store: f.config.store, keepAwake: f.service, hotKeys: keys,
+            performTiling: { actions.append($0) }, refreshTiling: {})
+        controller.start(listening: false)
+        defer { controller.shutdown() }
+        keys.onAction?(.sendToPreviousDisplay)
+        controller.perform(.sendToNextDisplay)
+        #expect(actions == [.sendToPreviousDisplay, .sendToNextDisplay])
+        #expect(!f.service.isActive)
+        #expect(f.client.creates.isEmpty)
+        #expect(keys.registrations.count == 1)
+        #expect(keys.registrations[0][.sendToPreviousDisplay] == nil)
+        #expect(keys.registrations[0][.sendToNextDisplay] == nil)
+    }
+
+    @Test func displayTransfersRetainProductionAccessibilityGuard() {
+        let f = KeepAwakeFixture()
+        defer { f.cleanup() }
+        let tiling = TilingManager(configStore: f.config.store)
+        for action in [Action.sendToPreviousDisplay, .sendToNextDisplay] {
+            tiling.perform(action)
+        }
+        #expect(tiling.lastDesktopMoveError == nil)
+        #expect(tiling.lastDesktopSwitchError == nil)
+        #expect(!tiling.canRecoverDesktopSwitching)
+        #expect(!tiling.isRecoveringDock)
+        #expect(!f.service.isActive)
+    }
+
     @Test func untrustedDisabledTilingRetainsExistingGuards() {
         let f = KeepAwakeFixture()
         defer { f.cleanup() }

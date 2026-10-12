@@ -13,6 +13,49 @@ struct ConfigTests {
         #expect(config.bindings[.switchToDesktop(2)] == KeyCombo(key: "2", modifiers: [.alt]))
     }
 
+    @Test func displayActionsAreDiscoverableAndUnbound() throws {
+        let oldActions = Direction.allCases.map(Action.focus) + Direction.allCases.map(Action.move)
+            + (1...9).map(Action.sendToDesktop) + (1...9).map(Action.switchToDesktop)
+            + [.toggleFloat, .retile, .toggleKeepAwake]
+        #expect(Array(Action.allCases.dropLast(2)) == oldActions)
+        #expect(Array(Action.allCases.suffix(2)) == [.sendToPreviousDisplay, .sendToNextDisplay])
+        #expect(Action(rawValue: "send-to-previous-display") == .sendToPreviousDisplay)
+        #expect(Action(rawValue: "send-to-next-display") == .sendToNextDisplay)
+        #expect(Action.sendToPreviousDisplay.title == "Send window to previous display")
+        #expect(Action.sendToNextDisplay.title == "Send window to next display")
+        let oldConfig = try JSONDecoder().decode(Config.self, from: Data(#"{"gap":12,"bindings":{"focus-left":"ctrl+a"}}"#.utf8))
+        #expect(oldConfig.bindings[.sendToPreviousDisplay] == nil)
+        #expect(oldConfig.bindings[.sendToNextDisplay] == nil)
+        #expect(oldConfig.bindings[.focus(.left)] == KeyCombo(string: "ctrl+a"))
+        for action in oldActions where action != .focus(.left) {
+            #expect(oldConfig.bindings[action] == Config.defaultBindings[action])
+        }
+    }
+
+    @Test func displayBindingsRoundTripWithExplicitNullAndMissingDefaults() throws {
+        let json = #"{"bindings":{"send-to-previous-display":"ctrl+alt+p","send-to-next-display":null}}"#
+        let config = try JSONDecoder().decode(Config.self, from: Data(json.utf8))
+        #expect(config.bindings[.sendToPreviousDisplay] == KeyCombo(string: "ctrl+alt+p"))
+        #expect(config.bindings[.sendToNextDisplay] == .some(nil))
+        let data = try JSONEncoder().encode(config)
+        #expect(try JSONDecoder().decode(Config.self, from: data) == config)
+        let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let bindings = try #require(object["bindings"] as? [String: Any])
+        #expect(bindings["send-to-next-display"] is NSNull)
+        #expect(bindings["send-to-previous-display"] as? String == "ctrl+alt+p")
+        let missing = try JSONDecoder().decode(Config.self, from: Data("{}".utf8))
+        #expect(missing.bindings[.sendToPreviousDisplay] == nil)
+        #expect(missing.bindings[.sendToNextDisplay] == nil)
+    }
+
+    @Test func displayBindingDuplicatesRetainExistingRegistrationPriority() throws {
+        let json = #"{"bindings":{"focus-left":"ctrl+a","send-to-next-display":"ctrl+a"}}"#
+        let config = try JSONDecoder().decode(Config.self, from: Data(json.utf8))
+        // HotKeyManager consumes this order: existing actions keep their earlier registration priority.
+        let matching = Action.allCases.filter { config.bindings[$0] == KeyCombo(string: "ctrl+a") }
+        #expect(matching == [.focus(.left), .sendToNextDisplay])
+    }
+
     @Test func animationDefaultsToEnabledForExistingConfigs() throws {
         let config = try JSONDecoder().decode(Config.self, from: Data(#"{ "gap": 12 }"#.utf8))
         #expect(config.animationsEnabled)
@@ -117,47 +160,93 @@ struct SpaceMoverTests {
         #expect(SpaceMover.desktopShortcut(10, symbolicHotKeys: nil) == nil)
     }
 
-    @Test func switchToTheShowingOrAMissingDesktopIsntChecked() async {
+    @Test func switchToTheShowingOrAMissingDesktopIsntRetried() async {
         for target: SpaceID? in [1, nil] {
             var sent = 0
-            var restarts = 0
-            await SpaceMover.switchTo(target, send: { sent += 1 }, restartDock: { restarts += 1; return true },
-                                      currentSpaces: { [1] }, wait: {})
-            #expect(sent == 1 && restarts == 0)
+            var waits = 0
+            let result = await SpaceMover.switchTo(target, send: { sent += 1 },
+                                                  currentSpaces: { [1] }, wait: { waits += 1 })
+            #expect(sent == 1 && waits == 0)
+            #expect(result == (target == nil ? .unchecked : .completed))
         }
     }
 
-    @Test func switchThatChangesASpaceDoesntRestartTheDock() async {
+    @Test func successfulSwitchIsntRetried() async {
         var spaces: Set<SpaceID> = [1]
-        var restarts = 0
-        await SpaceMover.switchTo(2, send: { spaces = [2] }, restartDock: { restarts += 1; return true },
-                                  currentSpaces: { spaces }, wait: {})
-        #expect(restarts == 0)
-    }
-
-    @Test func ignoredSwitchRestartsTheDockAndResendsUntilASpaceChanges() async {
-        var spaces: Set<SpaceID> = [1]
-        var dockRestarted = false
-        var sentAfterRestart = 0
-        await SpaceMover.switchTo(2, send: {
-            guard dockRestarted else { return }
-            // The relaunched Dock ignores the first resend, as if it were still starting.
-            sentAfterRestart += 1
-            if sentAfterRestart == 2 { spaces = [2] }
-        }, restartDock: { dockRestarted = true; return true }, currentSpaces: { spaces }, wait: {})
-        #expect(spaces == [2] && sentAfterRestart == 2)
-    }
-
-    @Test func ignoredSwitchIsntResentWithoutADockRestart() async {
         var sent = 0
-        await SpaceMover.switchTo(2, send: { sent += 1 }, restartDock: { false }, currentSpaces: { [1] }, wait: {})
+        let result = await SpaceMover.switchTo(2, send: { sent += 1; spaces = [2] },
+                                              currentSpaces: { spaces }, wait: {})
+        #expect(result == .completed)
         #expect(sent == 1)
     }
 
-    @Test func switchStillIgnoredAfterADockRestartGivesUp() async {
-        var restarts = 0
-        await SpaceMover.switchTo(2, send: {}, restartDock: { restarts += 1; return true }, currentSpaces: { [1] }, wait: {})
-        #expect(restarts == 1)
+    @Test func ignoredSwitchRetriesWithoutRestartingTheDock() async {
+        var sent = 0
+        var waits = 0
+        let result = await SpaceMover.switchTo(2, send: { sent += 1 },
+                                              currentSpaces: { [1] }, wait: { waits += 1 })
+        // No Dock-restart dependency exists in the switching path anymore.
+        #expect(result == .timedOut)
+        #expect(sent == 3 && waits == 60)
+    }
+
+    @Test func retryStopsOnceASpaceChanges() async {
+        for successfulAttempt in [2, 3] {
+            var spaces: Set<SpaceID> = [1]
+            var sent = 0
+            let result = await SpaceMover.switchTo(2, send: {
+                sent += 1
+                if sent == successfulAttempt { spaces = [2] }
+            }, currentSpaces: { spaces }, wait: {})
+            #expect(result == .completed)
+            #expect(sent == successfulAttempt)
+        }
+    }
+
+    @Test func switchOnAnotherDisplayAlsoStopsRetries() async {
+        var spaces: Set<SpaceID> = [1, 10]
+        var sent = 0
+        let result = await SpaceMover.switchTo(2, send: { sent += 1 },
+                                              currentSpaces: { spaces }, wait: { spaces = [1, 11] })
+        #expect(result == .completed)
+        #expect(sent == 1)
+    }
+
+    @Test func cancelledSwitchDoesntSendAnything() async {
+        var sent = 0
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return await SpaceMover.switchTo(2, send: { sent += 1 }, currentSpaces: { [1] }, wait: {})
+        }
+        #expect(await task.value == .cancelled)
+        #expect(sent == 0)
+    }
+
+    @Test func cancellationDuringPollingStopsRetries() async {
+        var sent = 0
+        var waits = 0
+        let task = Task {
+            await SpaceMover.switchTo(2, send: { sent += 1 }, currentSpaces: { [1] }, wait: {
+                waits += 1
+                withUnsafeCurrentTask { $0?.cancel() }
+            })
+        }
+        #expect(await task.value == .cancelled)
+        #expect(sent == 1 && waits == 1)
+    }
+
+    @Test func unavailableShortcutReportsFailureWithoutPostingEvents() async {
+        #expect(await SpaceMover.switchTo(desktop: 10) == .shortcutUnavailable)
+    }
+
+    @Test func recoveryIsUnavailableWithoutAFailedSwitch() async {
+        let store = AppEnvironment.makeConfigStore(testing: true)
+        defer { store.shutdown() }
+        let manager = TilingManager(configStore: store)
+        await manager.recoverDesktopSwitching()
+        #expect(!manager.canRecoverDesktopSwitching)
+        #expect(!manager.isRecoveringDock)
+        #expect(manager.lastDesktopSwitchError == nil)
     }
 }
 
