@@ -1,58 +1,166 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+enum SettingsPage: String, CaseIterable, Identifiable {
+    case layout, floatingApps, shortcuts, keepAwake, advanced
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .layout: "Layout"
+        case .floatingApps: "Floating Apps"
+        case .shortcuts: "Keyboard Shortcuts"
+        case .keepAwake: "Keep Awake"
+        case .advanced: "Advanced"
+        }
+    }
+    var icon: String {
+        switch self {
+        case .layout: "rectangle.split.2x2"
+        case .floatingApps: "macwindow.on.rectangle"
+        case .shortcuts: "keyboard"
+        case .keepAwake: "cup.and.saucer"
+        case .advanced: "gearshape.2"
+        }
+    }
+    var subtitle: String {
+        switch self {
+        case .layout: "Adjust window spacing and motion."
+        case .floatingApps: "Choose apps that should stay outside automatic tiling."
+        case .shortcuts: "Customize how you navigate and arrange your workspace."
+        case .keepAwake: "Choose preferences for your next Keep Awake session."
+        case .advanced: "Manage permissions and the configuration file."
+        }
+    }
+}
+
+enum SettingsShortcutGroup: String, CaseIterable, Identifiable {
+    case focus = "Focus"
+    case move = "Move Windows"
+    case desktops = "Desktops"
+    case displays = "Displays"
+    case other = "Other"
+
+    var id: String { rawValue }
+    var actions: [Action] {
+        Action.allCases.filter { action in
+            switch action {
+            case .focus: self == .focus
+            case .move: self == .move
+            case .sendToDesktop, .switchToDesktop: self == .desktops
+            case .sendToPreviousDisplay, .sendToNextDisplay: self == .displays
+            case .toggleFloat, .retile, .toggleKeepAwake: self == .other
+            }
+        }
+    }
+}
+
 struct SettingsView: View {
     @Bindable var configStore: ConfigStore
     let manager: TilingManager
     let controller: AppController
 
+    @AppStorage("settings.selectedPage") private var selectedPage = SettingsPage.layout.rawValue
     @State private var newBundleID = ""
     @State private var isPickingApps = false
 
+    private var page: SettingsPage { SettingsPage(rawValue: selectedPage) ?? .layout }
+    private var selection: Binding<SettingsPage?> {
+        Binding(
+            get: { page },
+            set: { if let value = $0 { selectedPage = value.rawValue } }
+        )
+    }
+
     var body: some View {
-        Form {
+        NavigationSplitView(columnVisibility: .constant(.all)) {
+            List(SettingsPage.allCases, selection: selection) { item in
+                Label(item.title, systemImage: item.icon)
+                    .tag(item)
+                    .padding(.vertical, 4)
+            }
+            .listStyle(.sidebar)
+            .navigationSplitViewColumnWidth(min: 190, ideal: 200, max: 240)
+            .navigationTitle("Momentum")
+            .toolbar(removing: .sidebarToggle)
+            .accessibilityLabel("Settings sections")
+        } detail: {
+            VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(page.subtitle).foregroundStyle(.secondary)
+                    if let error = configStore.lastError {
+                        warning(error)
+                    }
+                }
+                .padding(24)
+
+                Form {
+                    switch page {
+                    case .layout: layoutSettings
+                    case .floatingApps: floatingSettings
+                    case .shortcuts: shortcutSettings
+                    case .keepAwake: keepAwakeSettings
+                    case .advanced: advancedSettings
+                    }
+                }
+                .formStyle(.grouped)
+                .id(page)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .navigationTitle(page.title)
+        }
+        .navigationSplitViewStyle(.balanced)
+        .frame(minWidth: 720, idealWidth: 780, minHeight: 540, idealHeight: 600)
+        .sheet(isPresented: $isPickingApps) {
+            AppPickerSheet(selection: $configStore.config.floatingBundleIDs)
+        }
+    }
+
+    private var layoutSettings: some View {
+        Group {
             if !manager.isTrusted {
                 Section {
-                    Label("Tiling requires Device Control and Data Access in System Settings › Privacy & Security. Keep Awake does not.",
-                          systemImage: "exclamationmark.triangle")
+                    warning("Tiling requires Device Control and Data Access permissions. Keep Awake does not.")
+                    Button("Review Permissions") { selectedPage = SettingsPage.advanced.rawValue }
                 }
             }
-            if let error = configStore.lastError {
-                Section {
-                    Label(error, systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.red)
-                }
+            Section("Spacing") {
+                TextField("Gap between windows (points)", value: spacing(\.gap), format: .number)
+                TextField("Screen padding (points)", value: spacing(\.outerPadding), format: .number)
             }
-
-            if let error = manager.lastDesktopMoveError {
-                Section {
-                    Label(error, systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.red)
-                }
-            }
-
             Section {
-                TextField("Gap between windows", value: spacing(\.gap), format: .number)
-                TextField("Screen padding", value: spacing(\.outerPadding), format: .number)
                 Toggle("Animate tiling transitions", isOn: $configStore.config.animationsEnabled)
                 Toggle("Ignore Reduce Motion for Momentum", isOn: $configStore.config.ignoreReduceMotion)
                     .disabled(!configStore.config.animationsEnabled)
             } header: {
-                Text("Layout")
+                Text("Motion")
             } footer: {
-                Text("Animations use a 200 ms ease-out transition. Reduce Motion is respected unless you enable the Momentum-only override above; your system setting stays unchanged. Smoothness varies by app. Each normal Desktop display has its own layout and display-synchronized animation. Turn off \"Drag windows to screen edges to tile\" in System Settings › Desktop & Dock so macOS's own tiling doesn't compete with Momentum.")
+                Text("Transitions use a 200 ms ease-out animation. Reduce Motion is respected unless you enable this Momentum-only override; your system setting stays unchanged. Smoothness varies by app.")
             }
+            Section("macOS Tiling") {
+                Text("Turn off “Drag windows to screen edges to tile” in System Settings › Desktop & Dock so macOS tiling does not compete with Momentum.")
+                    .foregroundStyle(.secondary)
+                Button("Open Desktop & Dock Settings") {
+                    openSystemSettings("com.apple.Desktop-Settings.extension")
+                }
+            }
+        }
+    }
 
-            Section("Floating apps") {
+    private var floatingSettings: some View {
+        Group {
+            Section("Excluded Apps") {
+                if configStore.config.floatingBundleIDs.isEmpty {
+                    Text("No apps excluded. Choose apps below to keep their windows floating.")
+                        .foregroundStyle(.secondary)
+                }
                 ForEach(configStore.config.floatingBundleIDs, id: \.self) { bundleID in
                     let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
                     HStack {
                         AppIcon(url: appURL)
                         VStack(alignment: .leading) {
                             Text(appURL.map(InstalledApp.displayName) ?? bundleID)
-                            Text(bundleID)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            Text(bundleID).font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
                         Button("Remove", systemImage: "minus.circle") {
@@ -60,66 +168,168 @@ struct SettingsView: View {
                         }
                         .labelStyle(.iconOnly)
                         .buttonStyle(.borderless)
+                        .help("Remove \(appURL.map(InstalledApp.displayName) ?? bundleID)")
+                        .accessibilityLabel("Remove \(appURL.map(InstalledApp.displayName) ?? bundleID)")
                     }
-                }
-                HStack {
-                    TextField("Bundle identifier", text: $newBundleID, prompt: Text("com.example.app"))
-                    Button("Add") {
-                        configStore.config.floatingBundleIDs.append(newBundleID)
-                        newBundleID = ""
-                    }
-                    .disabled(newBundleID.isEmpty || configStore.config.floatingBundleIDs.contains(newBundleID))
                 }
                 Button("Choose Apps…") { isPickingApps = true }
             }
-            .sheet(isPresented: $isPickingApps) {
-                AppPickerSheet(selection: $configStore.config.floatingBundleIDs)
-            }
-
             Section {
-                ForEach(Action.allCases, id: \.self) { action in
-                    LabeledContent(action.title) {
-                        HStack {
-                            if controller.failedHotKeys.contains(action) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundStyle(.yellow)
-                                    .help("This shortcut isn't active: an action above already uses it, or macOS refused it.")
+                HStack {
+                    TextField("Bundle identifier", text: $newBundleID, prompt: Text("com.example.app"))
+                    Button("Add") {
+                        configStore.config.floatingBundleIDs.append(trimmedBundleID)
+                        newBundleID = ""
+                    }
+                    .disabled(trimmedBundleID.isEmpty || configStore.config.floatingBundleIDs.contains(trimmedBundleID))
+                }
+            } header: {
+                Text("Add Manually")
+            } footer: {
+                Text("Use a bundle identifier for an app that is not listed in the picker.")
+            }
+        }
+    }
+
+    private var trimmedBundleID: String { newBundleID.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    private var shortcutSettings: some View {
+        Group {
+            if let error = manager.lastDesktopMoveError {
+                Section { warning(error) }
+            }
+            if let error = manager.lastDesktopSwitchError {
+                Section { warning(error) }
+            }
+            Section {
+                Text("Click a shortcut, then press your keys. Include at least one modifier. Escape cancels; Delete clears.")
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(SettingsShortcutGroup.allCases) { group in
+                Section(group.rawValue) {
+                    ForEach(group.actions, id: \.self) { action in
+                        LabeledContent(action.title) {
+                            HStack {
+                                if controller.failedHotKeys.contains(action) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundStyle(.yellow)
+                                        .help("This shortcut is inactive: another action already uses it, or macOS refused it.")
+                                        .accessibilityLabel("Shortcut inactive: duplicate or refused by macOS")
+                                }
+                                HotKeyRecorder(combo: Binding(
+                                    get: { configStore.config.bindings[action] ?? nil },
+                                    // Explicit nil preserves a cleared shortcut across reloads.
+                                    set: { configStore.config.bindings[action] = .some($0) }
+                                ))
+                                .accessibilityLabel("\(action.title) shortcut")
                             }
-                            HotKeyRecorder(combo: Binding(
-                                get: { configStore.config.bindings[action] ?? nil },
-                                // Store nil explicitly so a cleared hotkey isn't replaced by its default on reload.
-                                set: { configStore.config.bindings[action] = .some($0) }
-                            ))
                         }
                     }
                 }
-            } header: {
-                Text("Hotkeys")
-            } footer: {
-                Text("""
-                    Send to Desktop N uses the Nth normal Desktop on the focused window’s display, without switching Desktops or moving the cursor. This per-display order may differ from macOS’s global Desktop shortcut labels. Previous/next-display shortcuts are unbound by default; they wrap through normal Desktop displays in physical order and follow the moved window. Fullscreen destinations are skipped.
-
-                    Native moves use an unsupported macOS API and may stop working after a system update. Fully enabled SIP and end-to-end multi-display behavior still await validation. Shared-Spaces live tests were skipped. Only Desktop switching uses macOS’s "Switch to Desktop N" shortcuts, which must be enabled in System Settings › Keyboard › Keyboard Shortcuts › Mission Control.
-
-                    Shortcuts follow key positions, so they work on any keyboard layout; the config file names keys by their US-layout position. On some layouts ⌥ combinations type characters (on German, ⌥L types @), so rebind any you need for typing.
-                    """)
             }
+            Section("Guidance") {
+                DisclosureGroup("Desktop behavior & limitations") {
+                    Text("""
+                        Send to Desktop N uses the Nth normal Desktop on the focused window’s display, without switching Desktops or moving the cursor. This per-display order may differ from macOS’s global Desktop shortcut labels.
 
-            Section {
-                HStack {
-                    Text(ConfigStore.fileURL.path)
+                        Previous/next-display shortcuts are unbound by default. They wrap through normal Desktop displays in physical order and follow the moved window. Fullscreen destinations are skipped.
+
+                        Native moves use an unsupported macOS API and may stop working after a system update. Fully enabled SIP and end-to-end multi-display behavior still await validation. Shared-Spaces live tests were skipped.
+
+                        Only Desktop switching uses macOS’s “Switch to Desktop N” shortcuts. Enable them in System Settings › Keyboard › Keyboard Shortcuts › Mission Control.
+                        """)
                         .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                    Spacer()
-                    Button("Open") { NSWorkspace.shared.open(ConfigStore.fileURL) }
-                    Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([ConfigStore.fileURL]) }
                 }
-            } header: {
-                Text("Config file")
+                DisclosureGroup("Keyboard layouts") {
+                    Text("Shortcuts follow key positions on any keyboard layout; the config file names keys by their US-layout position. On some layouts, Option combinations type characters (for example, Option-L types @ on German keyboards). Rebind any shortcuts you need for typing.")
+                        .foregroundStyle(.secondary)
+                }
             }
         }
-        .formStyle(.grouped)
-        .frame(minWidth: 520, minHeight: 600)
+    }
+
+    private var keepAwakeSettings: some View {
+        Group {
+            Section {
+                Picker("Preferred duration", selection: preference(\.duration)) {
+                    ForEach(KeepAwakeDuration.allCases, id: \.self) { duration in
+                        Text(duration.title).tag(duration)
+                    }
+                }
+                Picker("Preferred mode", selection: preference(\.mode)) {
+                    ForEach(KeepAwakeMode.allCases, id: \.self) { mode in
+                        Text(mode == .system ? "System only" : "System and display").tag(mode)
+                    }
+                }
+            } header: {
+                Text("Session Preferences")
+            } footer: {
+                Text("Changes apply when you next start Keep Awake. A running session is not changed.")
+            }
+            Section("How It Works") {
+                Text("System only allows the display to sleep. System and display keeps both awake. Explicit sleep, lid closure, and macOS battery protections still apply.")
+                    .foregroundStyle(.secondary)
+                Text("Start, stop, and extend sessions from Momentum’s menu-bar popover. Keep Awake does not require tiling permissions.")
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var advancedSettings: some View {
+        Group {
+            Section {
+                Label(manager.isTrusted ? "Tiling permissions granted" : "Tiling permissions required",
+                      systemImage: manager.isTrusted ? "checkmark.circle" : "exclamationmark.triangle")
+                    .foregroundStyle(manager.isTrusted ? Color.secondary : Color.orange)
+                Text("Allow Momentum under System Settings › Privacy & Security › Device Control and Data Access. Keep Awake works without these permissions.")
+                    .foregroundStyle(.secondary)
+                Button("Open Privacy & Security Settings") {
+                    openSystemSettings("com.apple.settings.PrivacySecurity.extension")
+                }
+            } header: {
+                Text("Permissions")
+            }
+            Section {
+                Text(configStore.location.path)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Button("Open") { NSWorkspace.shared.open(configStore.location) }
+                    Button("Reveal in Finder") {
+                        NSWorkspace.shared.activateFileViewerSelecting([configStore.location])
+                    }
+                }
+            } header: {
+                Text("Configuration File")
+            } footer: {
+                Text("Changes save immediately. Momentum also reloads this JSON file when you edit it externally.")
+            }
+        }
+    }
+
+    private func warning(_ message: String) -> some View {
+        Label(message, systemImage: "exclamationmark.triangle")
+            .foregroundStyle(.orange)
+            .fixedSize(horizontal: false, vertical: true)
+            .textSelection(.enabled)
+    }
+
+    private func openSystemSettings(_ pane: String) {
+        guard let url = URL(string: "x-apple.systempreferences:\(pane)") else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    private func preference<Value>(_ keyPath: WritableKeyPath<KeepAwakePreferences, Value>) -> Binding<Value> {
+        Binding(
+            get: { configStore.config.keepAwake[keyPath: keyPath] },
+            set: { value in
+                var preferences = configStore.config.keepAwake
+                preferences[keyPath: keyPath] = value
+                // ConfigStore publishes the error and retains old preferences on failure.
+                do { try configStore.updateKeepAwake(preferences) } catch {}
+            }
+        )
     }
 
     /// Keeps typed spacing within the range the config file accepts.

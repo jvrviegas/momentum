@@ -3,6 +3,7 @@
 
 Last updated: 2026-10-12
 
+- [settings-preferences](settings-preferences.md) — Sidebar and next-session vs live Keep Awake preferences | flow | settings, keep-awake
 - [multi-display-foundations](multi-display-foundations.md) — Native integration, verified settling and pending product QA | flow | displays, spaces, tiling
 - [desktop-switch-investigation](desktop-switch-investigation.md) — Reproduced unwanted restore from desktop-switch Dock recovery | gotcha | spaces, dock, minimize
 - [native-space-moves](native-space-moves.md) — Private bridged Space moves, verification + SIP caveat | flow | spaces, native, skylight
