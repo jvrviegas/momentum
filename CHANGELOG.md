@@ -2,6 +2,34 @@
 
 Notable changes to Momentum are documented here. Versions follow Semantic Versioning; `0.x` releases are early-stage and may change before stabilization.
 
+## [0.4.0] - 2026-10-12
+
+Source-only prerelease; a Developer ID-signed, notarized installer is not yet available.
+
+### Added
+
+- Independent tiling layouts for each display and native Desktop, with per-display usable bounds and animation pacing.
+- Directional keyboard focus across display edges while window swaps stay on the current display.
+- Optional previous/next-display shortcuts with wrapping, verified placement and focus following. Floating windows remain floating and fit within the destination's usable area.
+- Dragging a tiled window across displays inserts it into the destination layout after release. Disconnect/reconnect follows macOS's relocation without actively restoring windows to their former monitor.
+
+### Changed
+
+- Send to Desktop N now targets the Nth normal Desktop on the focused window's display. Fullscreen destinations are excluded; per-display sending order may differ from macOS's global switching shortcut labels.
+- Native display transfers wait for stable Space membership and matching Accessibility/WindowServer geometry before following focus. Failed or partial moves reconcile actual state and report a dismissible error.
+- Spacing and animation settings remain shared across displays, with Reduce Motion support and no programmatic layout writes during a mouse drag.
+
+### Fixed
+
+- Desktop-switch recovery now requires explicit confirmation before restarting the Dock; an ignored shortcut never automatically restarts it or restores minimized windows.
+
+### Compatibility
+
+- Validation includes 179 automated tests, 16 targeted native coordinator checks and 19 owner-observed manual checks in a fixture-restricted preview on macOS 27.0.1 with mixed-refresh displays.
+- Unsupported native Space APIs may break after macOS updates. The test host already had custom/partially disabled SIP; fully enabled SIP compatibility remains unverified. This is not a recommendation to disable SIP.
+- Shared-Spaces live tests were skipped at the owner's request. Mirroring, unrestricted regular-app/startup behavior and app-driven inter-display movement remain unverified.
+- This prerelease is source only; it does not provide an installer or validate automatic-update delivery.
+
 ## [0.3.1] - 2026-10-07
 
 Source-only prerelease; a Developer ID-signed, notarized installer is not yet available.
