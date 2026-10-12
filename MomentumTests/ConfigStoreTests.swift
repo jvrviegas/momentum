@@ -39,7 +39,8 @@ struct ConfigStoreTests {
             }
         }
         #expect(Action(rawValue: "toggle-keep-awake") == .toggleKeepAwake)
-        #expect(Action.allCases.last == .toggleKeepAwake)
+        // New display actions append after existing actions without changing registration priority.
+        #expect(Action.allCases.dropLast(2).last == .toggleKeepAwake)
         #expect(Action.toggleKeepAwake.title == "Toggle Keep Awake")
         let unbound = try JSONDecoder().decode(Config.self, from: Data(#"{"bindings":{"toggle-keep-awake":null}}"#.utf8))
         #expect(unbound.bindings[.toggleKeepAwake] == .some(nil))

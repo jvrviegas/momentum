@@ -1,0 +1,480 @@
+import CoreGraphics
+import Foundation
+import Testing
+@testable import Momentum
+
+@MainActor
+final class FakeTilingWindow {
+    let id: WindowID
+    var frame: CGRect
+    var serverFrame: CGRect?
+    var space: SpaceID
+    var standard = true
+    var bundleID: String? = "test.app"
+    var writes: [CGRect] = []
+    var writeFrom: [CGRect?] = []
+    var resizeFlags: [(Bool, Bool)] = []
+    var succeeds = true
+    var refusesResize = false
+    var focused = 0
+
+    init(_ id: WindowID, _ frame: CGRect, space: SpaceID) {
+        self.id = id; self.frame = frame; self.space = space
+        serverFrame = frame
+    }
+    var handle: TilingEnvironment.Window {
+        .init(id: id, bundleID: bundleID, readStandard: { self.standard }, readFrame: { self.frame },
+              writeFrame: { frame, previous, resize, repair in
+                  self.writes.append(frame)
+                  self.writeFrom.append(previous)
+                  self.resizeFlags.append((resize, repair))
+                  guard self.succeeds, !(self.refusesResize && resize) else { return false }
+                  self.frame = frame; self.serverFrame = frame
+                  return true
+              }, focus: { self.focused += 1 })
+    }
+}
+
+@MainActor
+final class TilingFixture {
+    let config = TemporaryConfig()
+    var displayInventory: Spaces.DisplayInventory
+    var windows: [FakeTilingWindow] = []
+    var focusedID: WindowID?
+    var enumerations = 0
+    var moves: [(WindowID, SpaceID)] = []
+    var moveFailure: Error?
+    var onMove: (() -> Void)?
+    var onWait: (() -> Void)?
+    var errors = 0
+    var time = 0.0
+    var reduceMotion = false
+    var mouse = false
+    var pointer: CGPoint? = nil
+    var ticks: [DisplayID: () -> Bool] = [:]
+    var invalidated: [DisplayID] = []
+    var provideLinks = false
+
+    init(shared: Bool = false) {
+        let a = DisplayTopology.Display(id: 1, frame: CGRect(x: 0, y: 0, width: 1000, height: 800),
+            usableFrame: CGRect(x: 0, y: 20, width: 1000, height: 780), activeSpace: .init(id: 10, kind: .normal))
+        let b = DisplayTopology.Display(id: 2, frame: CGRect(x: 1000, y: 0, width: 800, height: 600),
+            usableFrame: CGRect(x: 1000, y: 20, width: 800, height: 580),
+            activeSpace: .init(id: shared ? 10 : 20, kind: .normal))
+        displayInventory = .init(topology: .init(displays: [a, b]), desktops: [
+            1: .init(identifier: "a", activeSpace: a.activeSpace, desktopSpaces: [10, 11]),
+            2: .init(identifier: "b", activeSpace: b.activeSpace, desktopSpaces: shared ? [10, 11] : [20, 21])
+        ])
+        config.store.config.animationsEnabled = false
+    }
+    func cleanup() { config.cleanup() }
+
+    var environment: TilingEnvironment {
+        .init(inventory: { self.displayInventory },
+              windows: { self.enumerations += 1; return self.windows.map(\.handle) },
+              focusedWindow: { self.windows.first { $0.id == self.focusedID }?.handle },
+              space: { id in self.windows.first { $0.id == id }?.space },
+              existingWindowIDs: { Set(self.windows.map(\.id)) },
+              serverFrame: { id in self.windows.first { $0.id == id }?.serverFrame },
+              moveToSpace: { id, space in
+                  if let failure = self.moveFailure { throw failure }
+                  self.moves.append((id, space))
+                  self.windows.first { $0.id == id }?.space = space
+                  self.onMove?()
+              },
+              switchDesktop: { _ in .completed }, restartDock: { false },
+              mousePressed: { self.mouse }, cursor: { self.pointer }, reduceMotion: { self.reduceMotion },
+              now: { self.time },
+              makeDisplayLink: { id, tick in
+                  guard self.provideLinks else { return nil }
+                  self.ticks[id] = tick
+                  return .init(invalidate: { self.invalidated.append(id); self.ticks[id] = nil })
+              },
+              wait: { self.onWait?(); self.time += 0.02; await Task.yield() },
+              reportError: { self.errors += 1 })
+    }
+    func manager(trusted: Bool = true) -> TilingManager {
+        TilingManager(configStore: config.store, environment: environment, initiallyTrusted: trusted)
+    }
+    func display(_ id: DisplayID, space: SpaceID? = nil, kind: DisplayTopology.SpaceKind = .normal) {
+        let displays = displayInventory.topology.displays.map { old in
+            old.id == id ? DisplayTopology.Display(id: old.id, frame: old.frame, usableFrame: old.usableFrame,
+                activeSpace: space.map { .init(id: $0, kind: kind) }) : old
+        }
+        displayInventory = .init(topology: .init(displays: displays), desktops: displayInventory.desktops)
+    }
+}
+
+@MainActor
+struct MultiDisplayTilingTests {
+    @Test func oneEnumerationTilesBothDisplaysIndependently() {
+        let f = TilingFixture(); defer { f.cleanup() }
+        f.windows = [FakeTilingWindow(1, CGRect(x: 0, y: 30, width: 400, height: 300), space: 10),
+                     FakeTilingWindow(2, CGRect(x: 1100, y: 30, width: 400, height: 300), space: 20)]
+        let manager = f.manager(); manager.retile()
+        #expect(f.enumerations == 1)
+        #expect(f.windows[0].frame == CGRect(x: 8, y: 28, width: 984, height: 764))
+        #expect(f.windows[1].frame == CGRect(x: 1008, y: 28, width: 784, height: 564))
+        let other = manager.layoutState.trees[LayoutKey(displayID: 2, spaceID: 20)]
+        f.windows.append(FakeTilingWindow(3, CGRect(x: 10, y: 30, width: 400, height: 300), space: 10))
+        manager.retile()
+        #expect(manager.layoutState.trees[LayoutKey(displayID: 2, spaceID: 20)] == other)
+    }
+
+    @Test func sharedSpaceDoesNotMergeDisplays() {
+        let f = TilingFixture(shared: true); defer { f.cleanup() }
+        f.windows = [FakeTilingWindow(1, CGRect(x: 0, y: 30, width: 400, height: 300), space: 10),
+                     FakeTilingWindow(2, CGRect(x: 1100, y: 30, width: 400, height: 300), space: 10)]
+        let manager = f.manager(); manager.retile()
+        #expect(manager.layoutState.trees[LayoutKey(displayID: 1, spaceID: 10)]?.windows == [1])
+        #expect(manager.layoutState.trees[LayoutKey(displayID: 2, spaceID: 10)]?.windows == [2])
+    }
+
+    @Test func excludesFullscreenUnknownFloatingHiddenAndWrongSpace() {
+        let f = TilingFixture(); defer { f.cleanup() }
+        f.windows = (1...4).map { FakeTilingWindow(WindowID($0), CGRect(x: 10, y: 30, width: 400, height: 300), space: 10) }
+        f.windows[1].standard = false
+        f.windows[2].bundleID = "com.apple.systempreferences"
+        f.windows[3].space = 11
+        f.windows.append(FakeTilingWindow(5, CGRect(x: 1100, y: 30, width: 400, height: 300), space: 20))
+        f.display(2, space: 20, kind: .fullscreen)
+        let manager = f.manager(); manager.retile()
+        #expect(manager.layoutState.trees[LayoutKey(displayID: 1, spaceID: 10)]?.windows == [1])
+        #expect(f.windows.dropFirst().allSatisfy { $0.writes.isEmpty })
+        f.display(1, space: nil)
+        manager.retile()
+        #expect(f.windows[0].writes.count == 1)
+    }
+
+    @Test func desktopChangesAndDisconnectedDisplaysDropOnlyProvenState() {
+        let f = TilingFixture(); defer { f.cleanup() }
+        f.windows = [FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 400, height: 300), space: 10)]
+        let manager = f.manager(); manager.retile()
+        let old = manager.layoutState.trees[LayoutKey(displayID: 1, spaceID: 10)]
+        f.display(1, space: 11); manager.retile()
+        #expect(manager.layoutState.trees[LayoutKey(displayID: 1, spaceID: 10)] == old)
+        f.displayInventory = .init(topology: .init(displays: Array(f.displayInventory.topology.displays.suffix(1))), desktops: [:])
+        manager.retile()
+        #expect(manager.layoutState.trees.keys.allSatisfy { $0.displayID == 2 })
+    }
+
+    @Test func focusPrefersLocalThenCrossesTheEdgeWhileSwapStaysLocal() {
+        let f = TilingFixture(); defer { f.cleanup() }
+        f.windows = [FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 200, height: 100), space: 10),
+                     FakeTilingWindow(2, CGRect(x: 10, y: 30, width: 200, height: 100), space: 10),
+                     FakeTilingWindow(3, CGRect(x: 1100, y: 30, width: 200, height: 100), space: 20)]
+        f.focusedID = 1
+        let manager = f.manager(); manager.perform(.focus(.right))
+        #expect(f.windows[1].focused == 1)
+        #expect(f.windows[2].focused == 0)
+        f.focusedID = 2; manager.perform(.focus(.right))
+        #expect(f.windows[2].focused == 1)
+        let other = manager.layoutState.trees[LayoutKey(displayID: 2, spaceID: 20)]
+        manager.perform(.move(.right))
+        #expect(manager.layoutState.trees[LayoutKey(displayID: 1, spaceID: 10)]?.windows == [1, 2])
+        #expect(manager.layoutState.trees[LayoutKey(displayID: 2, spaceID: 20)] == other)
+    }
+
+    @Test func focusDoesNotWrapOrTargetFloatingOrFullscreenWindows() {
+        let f = TilingFixture(); defer { f.cleanup() }
+        f.windows = [FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 200, height: 100), space: 10),
+                     FakeTilingWindow(2, CGRect(x: 1100, y: 30, width: 200, height: 100), space: 20)]
+        f.windows[1].bundleID = "com.apple.systempreferences"; f.focusedID = 1
+        let manager = f.manager(); manager.perform(.focus(.right)); manager.perform(.focus(.left))
+        #expect(f.windows.allSatisfy { $0.focused == 0 })
+        f.windows[1].bundleID = "test.app"; f.display(2, space: 20, kind: .fullscreen)
+        manager.perform(.focus(.right))
+        #expect(f.windows[1].focused == 0)
+    }
+
+    @Test func displayTransferConfirmsThenFocusesAndRetilesBothLayouts() async {
+        let f = TilingFixture(); defer { f.cleanup() }
+        f.windows = [FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 200, height: 100), space: 10),
+                     FakeTilingWindow(2, CGRect(x: 1100, y: 30, width: 200, height: 100), space: 20)]
+        f.focusedID = 1
+        let manager = f.manager(); manager.perform(.sendToNextDisplay)
+        #expect(f.windows[0].focused == 0)
+        #expect(manager.layoutState.trees[LayoutKey(displayID: 1, spaceID: 10)]?.windows == [1])
+        await manager.moveTask?.value
+        #expect(manager.lastDesktopMoveError == nil)
+        #expect(f.windows[0].space == 20)
+        #expect(f.windows[0].focused == 1)
+        #expect(manager.layoutState.trees[LayoutKey(displayID: 1, spaceID: 10)]?.isEmpty == true)
+        #expect(Set(manager.layoutState.trees[LayoutKey(displayID: 2, spaceID: 20)]?.windows ?? []) == [1, 2])
+        manager.perform(.sendToNextDisplay) // wrap from last to first
+        await manager.moveTask?.value
+        #expect(f.windows[0].space == 10)
+        #expect(f.windows[0].focused == 2)
+    }
+
+    @Test func floatingAndExcludedWindowsPreserveSizeWithoutJoiningTheTree() async {
+        let f = TilingFixture(); defer { f.cleanup() }
+        let window = FakeTilingWindow(1, CGRect(x: 50, y: 40, width: 420, height: 300), space: 10)
+        window.bundleID = "com.apple.systempreferences"; window.refusesResize = true
+        f.windows = [window]; f.focusedID = 1
+        let manager = f.manager(); manager.perform(.sendToPreviousDisplay)
+        await manager.moveTask?.value
+        #expect(manager.lastDesktopMoveError == nil)
+        #expect(window.frame == CGRect(x: 1050, y: 40, width: 420, height: 300))
+        #expect(window.resizeFlags.last?.0 == false)
+        #expect(manager.layoutState.trees.values.allSatisfy { $0.isEmpty })
+        #expect(window.focused == 1)
+    }
+
+    @Test func singleOrFullscreenDestinationIsANoOpAndDisabledTilingBlocksTransfer() async {
+        let f = TilingFixture(); defer { f.cleanup() }
+        f.windows = [FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 200, height: 100), space: 10)]; f.focusedID = 1
+        f.display(2, space: 20, kind: .fullscreen)
+        let manager = f.manager(); manager.perform(.sendToNextDisplay)
+        #expect(manager.moveTask == nil)
+        #expect(f.moves.isEmpty)
+        f.display(2, space: 20); manager.isEnabled = false; manager.perform(.sendToPreviousDisplay)
+        #expect(f.moves.isEmpty)
+        #expect(f.windows[0].writes.isEmpty)
+    }
+
+    @Test func destinationDisappearingOrNativeFailureDoesNotFollowFocusAndReportsError() async {
+        let f = TilingFixture(); defer { f.cleanup() }
+        let window = FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 200, height: 100), space: 10)
+        f.windows = [window]; f.focusedID = 1
+        f.onMove = { f.displayInventory = .init(topology: .init(displays: Array(f.displayInventory.topology.displays.prefix(1))), desktops: [:]) }
+        let manager = f.manager(); manager.perform(.sendToNextDisplay)
+        await manager.moveTask?.value
+        #expect(manager.lastDesktopMoveError != nil)
+        #expect(window.focused == 0)
+        #expect(f.errors == 1)
+        manager.dismissDesktopMoveError()
+        #expect(manager.lastDesktopMoveError == nil)
+    }
+
+    @Test func desktopMovesUseFocusedDisplayOrdinalsWithoutFocusOrDesktopSwitch() async {
+        let f = TilingFixture(); defer { f.cleanup() }
+        f.windows = [FakeTilingWindow(1, CGRect(x: 1100, y: 30, width: 200, height: 100), space: 20)]; f.focusedID = 1
+        let manager = f.manager(); manager.retile()
+        manager.perform(.sendToDesktop(1))
+        #expect(manager.moveTask == nil)
+        manager.perform(.sendToDesktop(2)); await manager.moveTask?.value
+        #expect(f.moves.first?.1 == 21)
+        #expect(f.windows[0].focused == 0)
+        #expect(f.displayInventory.topology.displays.last?.activeSpace?.id == 20)
+        f.windows[0].space = 20
+        manager.perform(.sendToDesktop(3))
+        #expect(manager.lastDesktopMoveError?.contains("this window's display") == true)
+    }
+
+    @Test func sharedSpaceTransfersNeedNoNativeMoveAndCommandsSerializeDuringSettling() async {
+        let f = TilingFixture(shared: true); defer { f.cleanup() }
+        f.windows = [FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 200, height: 100), space: 10)]; f.focusedID = 1
+        let manager = f.manager()
+        f.onWait = { manager.perform(.sendToPreviousDisplay); manager.retile() }
+        manager.perform(.sendToNextDisplay)
+        await manager.moveTask?.value
+        #expect(f.moves.isEmpty)
+        #expect(f.windows[0].frame.minX == 1008)
+        #expect(f.windows[0].focused == 1)
+        #expect(f.enumerations == 3) // refresh, destination planning, deferred reconciliation
+    }
+
+    @Test func crossDisplayDropReconcilesMembershipThenInsertsRatherThanSwaps() async {
+        let f = TilingFixture(); defer { f.cleanup() }
+        let dragged = FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 200, height: 100), space: 10)
+        f.windows = [dragged, FakeTilingWindow(2, CGRect(x: 1100, y: 30, width: 200, height: 100), space: 20)]
+        let manager = f.manager(); manager.retile()
+        dragged.frame = CGRect(x: 1100, y: 30, width: 200, height: 100)
+        f.mouse = true
+        manager.drop(dragged.handle, source: .init(displayID: 1, spaceID: 10), resized: false)
+        #expect(manager.moveTask == nil)
+        f.mouse = false
+        manager.drop(dragged.handle, source: .init(displayID: 1, spaceID: 10), resized: false)
+        await manager.moveTask?.value
+        #expect(manager.lastDesktopMoveError == nil)
+        #expect(dragged.space == 20)
+        #expect(dragged.focused == 0)
+        #expect(manager.layoutState.trees[LayoutKey(displayID: 1, spaceID: 10)]?.isEmpty == true)
+        #expect(Set(manager.layoutState.trees[LayoutKey(displayID: 2, spaceID: 20)]?.windows ?? []) == [1, 2])
+    }
+
+    @Test func localDropSwapsButResizingSnapsBackAndFloatingDropRemainsUntiled() async {
+        let f = TilingFixture(); defer { f.cleanup() }
+        let first = FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 200, height: 100), space: 10)
+        let second = FakeTilingWindow(2, CGRect(x: 10, y: 30, width: 200, height: 100), space: 10)
+        f.windows = [first, second]
+        let manager = f.manager(); manager.retile()
+        f.pointer = CGPoint(x: second.frame.midX, y: second.frame.midY)
+        manager.drop(first.handle, source: .init(displayID: 1, spaceID: 10), resized: false)
+        #expect(manager.layoutState.trees[LayoutKey(displayID: 1, spaceID: 10)]?.windows == [2, 1])
+        let stable = first.frame
+        first.frame.size.width -= 10
+        manager.drop(first.handle, source: .init(displayID: 1, spaceID: 10), resized: true)
+        #expect(first.frame == stable)
+        f.focusedID = 1; manager.perform(.toggleFloat)
+        first.frame = CGRect(x: 1100, y: 30, width: 200, height: 100); first.space = 20
+        manager.drop(first.handle, source: nil, resized: false)
+        #expect(manager.layoutState.trees.values.allSatisfy { !$0.contains(1) })
+        #expect(first.frame == CGRect(x: 1100, y: 30, width: 200, height: 100))
+        #expect(f.moves.isEmpty)
+    }
+
+    @Test func crossDropNativeFailureKeepsObservedStateAndDismissibleError() async {
+        let f = TilingFixture(); defer { f.cleanup() }
+        let window = FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 200, height: 100), space: 10)
+        f.windows = [window]
+        let manager = f.manager(); manager.retile()
+        window.frame = CGRect(x: 1100, y: 30, width: 200, height: 100)
+        f.moveFailure = SpaceMover.MoveError.nativeOperationUnavailable
+        manager.drop(window.handle, source: .init(displayID: 1, spaceID: 10), resized: false)
+        await manager.moveTask?.value
+        #expect(manager.lastDesktopMoveError != nil)
+        #expect(window.space == 10)
+        #expect(window.focused == 0)
+        #expect(manager.layoutState.trees[LayoutKey(displayID: 2, spaceID: 20)]?.isEmpty == true)
+    }
+
+    @Test func disablingDuringSettlingCancelsWithoutFollowingFocus() async {
+        let f = TilingFixture(); defer { f.cleanup() }
+        f.windows = [FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 200, height: 100), space: 10)]; f.focusedID = 1
+        let manager = f.manager()
+        f.onWait = { manager.isEnabled = false }
+        manager.perform(.sendToNextDisplay); await manager.moveTask?.value
+        #expect(f.windows[0].focused == 0)
+        #expect(manager.lastDesktopMoveError == nil)
+        #expect(!manager.isEnabled)
+        manager.isEnabled = true; f.onWait = nil; manager.retile()
+        #expect(manager.layoutState.trees[LayoutKey(displayID: 2, spaceID: 20)]?.windows == [1])
+    }
+
+    @Test func failedNativeRequestPreservesSourceLayoutAndDoesNotFocus() async {
+        let f = TilingFixture(); defer { f.cleanup() }
+        f.windows = [FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 200, height: 100), space: 10)]; f.focusedID = 1
+        f.moveFailure = SpaceMover.MoveError.nativeOperationUnavailable
+        let manager = f.manager(); manager.perform(.sendToNextDisplay); await manager.moveTask?.value
+        #expect(manager.layoutState.trees[LayoutKey(displayID: 1, spaceID: 10)]?.windows == [1])
+        #expect(f.windows[0].space == 10)
+        #expect(f.windows[0].focused == 0)
+        #expect(manager.lastDesktopMoveError != nil)
+    }
+
+    @Test func failedAnimationWriteClearsCacheAndFinalResizeRepairsClamping() {
+        let f = TilingFixture(); defer { f.cleanup() }
+        f.config.store.config.animationsEnabled = true; f.provideLinks = true
+        let window = FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 400, height: 300), space: 10)
+        f.windows = [window]; window.succeeds = false
+        let manager = f.manager(); manager.retile()
+        f.time = 0.05; _ = f.ticks[1]?()
+        window.succeeds = true
+        f.time = 0.1; _ = f.ticks[1]?()
+        #expect(window.writeFrom[1] == nil)
+        f.time = 0.2; _ = f.ticks[1]?()
+        #expect(window.resizeFlags.last?.0 == true)
+        #expect(window.resizeFlags.last?.1 == true)
+    }
+
+    @Test func staleSourceAnimationCannotWriteAfterWindowChangesSpace() {
+        let f = TilingFixture(); defer { f.cleanup() }
+        f.config.store.config.animationsEnabled = true; f.provideLinks = true
+        f.windows = [FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 400, height: 300), space: 10)]
+        let manager = f.manager(); manager.retile()
+        let stale = f.ticks[1]; f.windows[0].space = 20
+        _ = stale?()
+        #expect(f.windows[0].writes.isEmpty)
+        #expect(f.ticks.isEmpty)
+    }
+
+    @Test func fullscreenDropAndDisabledDropNeverSubmitNativeMoves() {
+        let f = TilingFixture(); defer { f.cleanup() }
+        let window = FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 400, height: 300), space: 10)
+        f.windows = [window]; let manager = f.manager(); manager.retile()
+        f.display(2, space: 20, kind: .fullscreen)
+        window.frame = CGRect(x: 1100, y: 30, width: 400, height: 300)
+        manager.drop(window.handle, source: .init(displayID: 1, spaceID: 10), resized: false)
+        #expect(f.moves.isEmpty)
+        #expect(manager.moveTask == nil)
+        manager.isEnabled = false; f.display(2, space: 20)
+        manager.drop(window.handle, source: .init(displayID: 1, spaceID: 10), resized: false)
+        #expect(f.moves.isEmpty)
+    }
+
+    @Test func refreshDefersAllProgrammaticWritesUntilPointerRelease() async {
+        let f = TilingFixture(); defer { f.cleanup() }
+        f.windows = [FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 200, height: 100), space: 10)]
+        f.mouse = true
+        let manager = f.manager(); manager.retile()
+        #expect(f.windows[0].writes.isEmpty)
+        f.mouse = false
+        await manager.pointerReleaseTask?.value
+        #expect(f.windows[0].writes.count == 1)
+    }
+
+    @Test func animationsUseIndependentDisplayLinksAndRetargets() {
+        let f = TilingFixture(); defer { f.cleanup() }
+        f.config.store.config.animationsEnabled = true; f.provideLinks = true
+        f.windows = [FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 400, height: 300), space: 10),
+                     FakeTilingWindow(2, CGRect(x: 1100, y: 30, width: 400, height: 300), space: 20)]
+        let manager = f.manager(); manager.retile()
+        #expect(Set(f.ticks.keys) == [1, 2])
+        #expect(f.windows.allSatisfy { $0.writes.isEmpty })
+        f.time = 0.1
+        _ = f.ticks[1]?()
+        #expect(f.windows[0].writes.count == 1)
+        #expect(f.windows[1].writes.isEmpty)
+        f.windows.append(FakeTilingWindow(3, CGRect(x: 10, y: 30, width: 100, height: 100), space: 10))
+        manager.retile()
+        #expect(f.invalidated.isEmpty)
+        f.time = 0.2
+        _ = f.ticks[2]?()
+        #expect(f.windows[1].frame == CGRect(x: 1008, y: 28, width: 784, height: 564))
+        #expect(f.invalidated == [2])
+    }
+
+    @Test func animationTicksStopWhenSpaceOrDisplayChanges() {
+        let f = TilingFixture(); defer { f.cleanup() }
+        f.config.store.config.animationsEnabled = true; f.provideLinks = true
+        f.windows = [FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 400, height: 300), space: 10)]
+        let manager = f.manager(); manager.retile()
+        let stale = f.ticks[1]
+        f.display(1, space: 11)
+        let continuing = stale?()
+        #expect(continuing == false)
+        #expect(f.windows[0].writes.isEmpty)
+        #expect(f.invalidated == [1])
+    }
+
+    @Test func animationPausesDuringMousePressAndReduceMotionFinishesImmediately() {
+        let f = TilingFixture(); defer { f.cleanup() }
+        f.config.store.config.animationsEnabled = true; f.provideLinks = true
+        f.windows = [FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 400, height: 300), space: 10)]
+        let manager = f.manager(); manager.retile()
+        f.mouse = true; f.time = 0.1
+        _ = f.ticks[1]?()
+        #expect(f.windows[0].writes.isEmpty)
+        f.mouse = false; f.reduceMotion = true
+        _ = f.ticks[1]?()
+        #expect(f.windows[0].frame == CGRect(x: 8, y: 28, width: 984, height: 764))
+        #expect(f.ticks.isEmpty)
+    }
+
+    @Test func disablingTilingInvalidatesLinksAndFailedWritesDoNotTrustCaches() {
+        let f = TilingFixture(); defer { f.cleanup() }
+        f.config.store.config.animationsEnabled = true; f.provideLinks = true
+        let window = FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 400, height: 300), space: 10)
+        window.succeeds = false; f.windows = [window]
+        let manager = f.manager(); manager.retile()
+        f.time = 0.1; _ = f.ticks[1]?()
+        #expect(window.writes.count == 1)
+        manager.isEnabled = false
+        #expect(f.ticks.isEmpty)
+        #expect(f.invalidated == [1])
+    }
+
+    @Test func trustDisableAndDuplicateIDsDoNotCauseExtraWrites() {
+        let f = TilingFixture(); defer { f.cleanup() }
+        let window = FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 400, height: 300), space: 10)
+        f.windows = [window, window]
+        let denied = f.manager(trusted: false); denied.retile()
+        #expect(f.enumerations == 0)
+        let manager = f.manager(); manager.isEnabled = false; manager.retile()
+        #expect(f.enumerations == 0)
+        manager.isEnabled = true; manager.retile()
+        #expect(window.writes.count == 1)
+    }
+}

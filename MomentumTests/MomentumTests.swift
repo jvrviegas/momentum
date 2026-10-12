@@ -13,6 +13,49 @@ struct ConfigTests {
         #expect(config.bindings[.switchToDesktop(2)] == KeyCombo(key: "2", modifiers: [.alt]))
     }
 
+    @Test func displayActionsAreDiscoverableAndUnbound() throws {
+        let oldActions = Direction.allCases.map(Action.focus) + Direction.allCases.map(Action.move)
+            + (1...9).map(Action.sendToDesktop) + (1...9).map(Action.switchToDesktop)
+            + [.toggleFloat, .retile, .toggleKeepAwake]
+        #expect(Array(Action.allCases.dropLast(2)) == oldActions)
+        #expect(Array(Action.allCases.suffix(2)) == [.sendToPreviousDisplay, .sendToNextDisplay])
+        #expect(Action(rawValue: "send-to-previous-display") == .sendToPreviousDisplay)
+        #expect(Action(rawValue: "send-to-next-display") == .sendToNextDisplay)
+        #expect(Action.sendToPreviousDisplay.title == "Send window to previous display")
+        #expect(Action.sendToNextDisplay.title == "Send window to next display")
+        let oldConfig = try JSONDecoder().decode(Config.self, from: Data(#"{"gap":12,"bindings":{"focus-left":"ctrl+a"}}"#.utf8))
+        #expect(oldConfig.bindings[.sendToPreviousDisplay] == nil)
+        #expect(oldConfig.bindings[.sendToNextDisplay] == nil)
+        #expect(oldConfig.bindings[.focus(.left)] == KeyCombo(string: "ctrl+a"))
+        for action in oldActions where action != .focus(.left) {
+            #expect(oldConfig.bindings[action] == Config.defaultBindings[action])
+        }
+    }
+
+    @Test func displayBindingsRoundTripWithExplicitNullAndMissingDefaults() throws {
+        let json = #"{"bindings":{"send-to-previous-display":"ctrl+alt+p","send-to-next-display":null}}"#
+        let config = try JSONDecoder().decode(Config.self, from: Data(json.utf8))
+        #expect(config.bindings[.sendToPreviousDisplay] == KeyCombo(string: "ctrl+alt+p"))
+        #expect(config.bindings[.sendToNextDisplay] == .some(nil))
+        let data = try JSONEncoder().encode(config)
+        #expect(try JSONDecoder().decode(Config.self, from: data) == config)
+        let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let bindings = try #require(object["bindings"] as? [String: Any])
+        #expect(bindings["send-to-next-display"] is NSNull)
+        #expect(bindings["send-to-previous-display"] as? String == "ctrl+alt+p")
+        let missing = try JSONDecoder().decode(Config.self, from: Data("{}".utf8))
+        #expect(missing.bindings[.sendToPreviousDisplay] == nil)
+        #expect(missing.bindings[.sendToNextDisplay] == nil)
+    }
+
+    @Test func displayBindingDuplicatesRetainExistingRegistrationPriority() throws {
+        let json = #"{"bindings":{"focus-left":"ctrl+a","send-to-next-display":"ctrl+a"}}"#
+        let config = try JSONDecoder().decode(Config.self, from: Data(json.utf8))
+        // HotKeyManager consumes this order: existing actions keep their earlier registration priority.
+        let matching = Action.allCases.filter { config.bindings[$0] == KeyCombo(string: "ctrl+a") }
+        #expect(matching == [.focus(.left), .sendToNextDisplay])
+    }
+
     @Test func animationDefaultsToEnabledForExistingConfigs() throws {
         let config = try JSONDecoder().decode(Config.self, from: Data(#"{ "gap": 12 }"#.utf8))
         #expect(config.animationsEnabled)

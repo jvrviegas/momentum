@@ -12,7 +12,7 @@ enum SpaceMover {
 
         var errorDescription: String? {
             switch self {
-            case .desktopUnavailable(let number): "Desktop \(number) isn't available on the main display."
+            case .desktopUnavailable(let number): "Desktop \(number) isn't available on this window's display."
             case .nativeOperationUnavailable: "Native Desktop moves aren't available on this macOS build."
             case .windowUnavailable: "The window is no longer available."
             case .timedOut: "macOS didn't confirm the Desktop move. Try again."
