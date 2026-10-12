@@ -38,5 +38,6 @@ import SwiftUI
         Settings {
             SettingsView(configStore: configStore, manager: manager, controller: controller)
         }
+        .windowToolbarStyle(.unifiedCompact)
     }
 }

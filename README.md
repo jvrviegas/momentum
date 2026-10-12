@@ -114,7 +114,7 @@ Keep Awake has passed automated/native checks and owner-confirmed manual accepta
 - [x] Basic Accessibility permission prompting and guidance in Settings.
 - [ ] Launch at login.
 - [ ] **Partial:** release-ready permission onboarding and recovery, including permission revocation; basic prompting and Settings guidance exist.
-- [ ] **Partial:** Developer ID-signed, notarized installer; release tooling exists, but distribution remains source-only.
+- [ ] **Partial:** Developer ID-signed, notarized installer; release tooling exists; a development-signed ZIP is available for local testing, but notarized distribution is not yet available.
 - [ ] **Partial / awaiting validation:** working automatic-update delivery for distributed releases; Sparkle and “Check for Updates” are integrated, but end-to-end delivery remains unverified.
 - [ ] **Awaiting validation:** supported macOS and Desktop-move behavior with fully enabled SIP; previous move verification used partially disabled SIP. Do not require users to disable SIP.
 
@@ -125,7 +125,7 @@ The [landing page prototype](docs/landing/prototype.html) separates capabilities
 ## Get started
 
 > [!IMPORTANT]
-> Momentum is currently an **early-stage source preview**, not a finished distribution. Releases are source-only; a Developer ID-signed, notarized installer is not yet available. **Multi-display tiling passed the guarded two-display QA suite; unrestricted real-app/startup validation remains pending.** Shared-Spaces live validation was skipped by the owner; fully enabled SIP compatibility remains unverified.
+> Momentum is currently an **early-stage source preview**, not a finished distribution. Starting with v0.5.0, prereleases include a development-signed app ZIP for local testing. It is not a Developer ID-signed, notarized installer, and automatic-update delivery is not validated. **Multi-display tiling passed the guarded two-display QA suite; unrestricted real-app/startup validation remains pending.** Shared-Spaces live validation was skipped by the owner; fully enabled SIP compatibility remains unverified.
 
 ### What you'll need
 

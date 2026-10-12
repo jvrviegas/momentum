@@ -2,6 +2,27 @@
 
 Notable changes to Momentum are documented here. Versions follow Semantic Versioning; `0.x` releases are early-stage and may change before stabilization.
 
+## [0.5.0] - 2026-10-12
+
+Early-stage prerelease with a development-signed app ZIP for local testing. It is not Developer ID-signed or notarized; automatic-update delivery is not validated.
+
+### Added
+
+- Settings now has dedicated Layout, Floating Apps, Keyboard Shortcuts, Keep Awake, and Advanced pages, with a persistent sidebar and remembered selection.
+- Preferred Keep Awake duration and mode can be changed in Settings for the next session, without altering a running session.
+
+### Changed
+
+- Keyboard shortcuts are grouped by focus, window movement, Desktops, displays, and other actions. Desktop limitations and keyboard-layout guidance are available in expandable disclosures.
+- Settings uses a compact native split-view layout without a sidebar toggle, focused page descriptions, contextual warnings, permission links, and immediate saving.
+- Floating-app settings include empty-state guidance, accessible removal controls, and whitespace trimming for manually entered bundle identifiers.
+
+### Compatibility
+
+- Validation includes 182 automated tests and runtime accessibility checks confirming the sidebar toggle is absent on all five Settings pages.
+- Existing native Desktop API, SIP, and multi-display validation limitations remain unchanged.
+- The downloadable ZIP is a development build for testing, not a notarized installer or a signed Sparkle update.
+
 ## [0.4.0] - 2026-10-12
 
 Source-only prerelease; a Developer ID-signed, notarized installer is not yet available.
