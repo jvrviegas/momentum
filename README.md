@@ -71,16 +71,28 @@ Momentum automatically arranges your windows, gives every native macOS Desktop i
 
 Arrange your windows, stay focused, and keep your work moving—all from one quiet menu-bar app. Window management is the foundation; focus tools should complement it, not become another distraction.
 
-This checklist is the **single high-level feature tracker for v1**, not a list of features already shipping. No release date is promised.
+This is the **single high-level feature tracker for v1**. Checked features are implemented in the source preview—not necessarily release-ready. No release date is promised.
 
-- **Checked:** implemented in the source preview, not a guarantee of release readiness.
-- **Unchecked, unlabelled:** planned and not yet implemented.
-- **Partial:** some implementation or infrastructure exists, but the feature is incomplete.
-- **Awaiting validation:** compatibility or release behavior still needs verification.
+### At a glance
 
-Update this checklist when implementation or validation changes a feature's status. Detailed implementation plans belong under `docs/plans/` as work on each feature starts; those plans track tasks and verification without duplicating this feature tracker.
+| Area | Current status | Next milestone |
+| --- | --- | --- |
+| 🪟 **Window management** | Core tiling implemented; multi-display awaiting validation | Unrestricted real-app/startup checks and fully enabled SIP compatibility |
+| ☕ **Keep Awake** | Implemented and owner-accepted | Preserve accepted behavior as focus tools are added |
+| 🎯 **Focus tools** | Planned | Timer, break reminders, and optional Keep Awake integration |
+| 🚀 **App experience** | Basic menu-bar app and permission guidance implemented | Launch at login and permission recovery |
+| 📦 **Distribution** | Installer tooling and updater infrastructure exist | Signed, notarized distribution and verified update delivery |
 
-### Organize your workspace
+**Status key:** 🟢 Implemented · ⚪ Planned · 🟡 Partial · 🔵 Awaiting validation
+
+- **`[x]` Implemented:** available in the source preview.
+- **`[ ]` Planned:** not yet implemented.
+- **`[ ]` Partial:** some implementation or infrastructure exists; work remains.
+- **`[ ]` Awaiting validation:** implementation exists, but compatibility or acceptance checks remain.
+
+Update the checklist **and summary above** whenever implementation or validation changes status. Detailed tasks and evidence belong under `docs/plans/` and `docs/qa/`; do not create a second high-level tracker.
+
+### 🪟 Organize your workspace
 
 - [x] Automatic BSP window tiling with configurable gaps and padding.
 - [x] Separate layouts for native macOS Desktops.
@@ -92,7 +104,7 @@ Update this checklist when implementation or validation changes a feature's stat
 - [x] Animated layout transitions with Reduce Motion support.
 - [ ] **Awaiting validation:** multi-display tiling, cross-display focus and optional display-transfer shortcuts are implemented; 179 tests, 16 native checks and 19 owner-observed guarded-preview checks passed. Unrestricted real-app/startup validation and full-SIP compatibility remain pending.
 
-### Keep work uninterrupted
+### ☕ Keep work uninterrupted
 
 - [x] Keep Awake toggle accessible from the menu bar and a configurable shortcut.
 - [x] Timed Keep Awake sessions or manual control until stopped.
@@ -101,24 +113,33 @@ Update this checklist when implementation or validation changes a feature's stat
 
 Keep Awake has passed automated/native checks and owner-confirmed manual acceptance. VoiceOver testing was explicitly skipped by the owner; see the [validation record](docs/qa/keep-awake-validation.md) for evidence and OS limits.
 
-### Stay focused
+### 🎯 Stay focused
 
-- [ ] Lightweight focus timer with configurable duration and keyboard controls.
-- [ ] Optional break reminders.
-- [ ] Focus sessions that can optionally enable Keep Awake.
-- [ ] Restore the previous Keep Awake state when a focus session ends or is cancelled.
+- [ ] **Planned:** lightweight focus timer with configurable duration and keyboard controls.
+- [ ] **Planned:** optional break reminders.
+- [ ] **Planned:** focus sessions that can optionally enable Keep Awake.
+- [ ] **Planned:** restore the previous Keep Awake state when a focus session ends or is cancelled.
 
-### Stay out of your way
+### 🚀 Stay out of your way
 
 - [x] Menu-bar app with no Dock presence.
 - [x] Basic Accessibility permission prompting and guidance in Settings.
-- [ ] Launch at login.
+- [ ] **Planned:** launch at login.
 - [ ] **Partial:** release-ready permission onboarding and recovery, including permission revocation; basic prompting and Settings guidance exist.
+
+### 📦 Distribution & compatibility
+
 - [ ] **Partial:** Developer ID-signed, notarized installer; release tooling exists; a development-signed ZIP is available for local testing, but notarized distribution is not yet available.
 - [ ] **Partial / awaiting validation:** working automatic-update delivery for distributed releases; Sparkle and “Check for Updates” are integrated, but end-to-end delivery remains unverified.
 - [ ] **Awaiting validation:** supported macOS and Desktop-move behavior with fully enabled SIP; previous move verification used partially disabled SIP. Do not require users to disable SIP.
 
-**Not in v1:** clipboard history, app launching, notes, task management, or detailed productivity analytics.
+### Detailed tracking
+
+- **Multi-display:** [implementation plan](docs/plans/multi-display-tiling-implementation-plan.md).
+- **Keep Awake:** [implementation plan](docs/plans/keep-awake-implementation-plan.md) · [validation record](docs/qa/keep-awake-validation.md).
+- **Focus and release work:** tracked above; add detailed plans when work begins.
+
+> **Outside v1:** clipboard history, app launching, notes, task management, and detailed productivity analytics.
 
 The [landing page prototype](docs/landing/prototype.html) separates capabilities available in the preview from planned v1 features. Its workspace illustration and film are concepts, not application recordings.
 
