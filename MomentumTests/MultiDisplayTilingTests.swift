@@ -17,6 +17,7 @@ final class FakeTilingWindow {
     var succeeds = true
     var refusesResize = false
     var focused = 0
+    var onWrite: (() -> Void)?
 
     init(_ id: WindowID, _ frame: CGRect, space: SpaceID) {
         self.id = id; self.frame = frame; self.space = space
@@ -30,6 +31,7 @@ final class FakeTilingWindow {
                   self.resizeFlags.append((resize, repair))
                   guard self.succeeds, !(self.refusesResize && resize) else { return false }
                   self.frame = frame; self.serverFrame = frame
+                  self.onWrite?()
                   return true
               }, focus: { self.focused += 1 })
     }
@@ -119,6 +121,63 @@ struct MultiDisplayTilingTests {
         f.windows.append(FakeTilingWindow(3, CGRect(x: 10, y: 30, width: 400, height: 300), space: 10))
         manager.retile()
         #expect(manager.layoutState.trees[LayoutKey(displayID: 2, spaceID: 20)] == other)
+    }
+
+    @Test func refreshStartsNewWindowAnimationWithoutDebounce() {
+        let f = TilingFixture(); defer { f.cleanup() }
+        f.config.store.config.animationsEnabled = true
+        f.provideLinks = true
+        let manager = f.manager()
+        manager.retile()
+        let window = FakeTilingWindow(1, CGRect(x: 0, y: 30, width: 400, height: 300), space: 10)
+        f.windows.append(window)
+        let initialFrame = window.frame
+
+        manager.configurationDidChange()
+
+        // No task yield or elapsed time is needed to discover the window and start its animation.
+        #expect(f.enumerations == 2)
+        #expect(manager.layoutState.trees[LayoutKey(displayID: 1, spaceID: 10)]?.windows == [1])
+        #expect(f.ticks[1] != nil)
+        #expect(window.frame == initialFrame)
+        f.time = WindowAnimation.duration
+        _ = f.ticks[1]?()
+        #expect(window.frame == CGRect(x: 8, y: 28, width: 984, height: 764))
+    }
+
+    @Test(arguments: [false, true])
+    func windowChangeDuringAnimationWriteDoesNotRestoreStaleTargets(opening: Bool) async {
+        let f = TilingFixture(); defer { f.cleanup() }
+        f.config.store.config.animationsEnabled = true
+        f.provideLinks = true
+        let survivor = FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 400, height: 300), space: 10)
+        let closing = FakeTilingWindow(2, CGRect(x: 500, y: 30, width: 400, height: 300), space: 10)
+        let added = FakeTilingWindow(3, CGRect(x: 100, y: 50, width: 400, height: 300), space: 10)
+        f.windows = [survivor, closing]
+        let manager = f.manager()
+        manager.retile()
+        survivor.onWrite = {
+            survivor.onWrite = nil
+            if opening { f.windows.append(added) }
+            else { f.windows.removeAll { $0.id == closing.id } }
+            manager.configurationDidChange()
+        }
+        f.time = 0.05
+        _ = f.ticks[1]?()
+        // Allow any deferred event work to finish before the next display frame.
+        for _ in 0..<10 { await Task.yield() }
+        let writes = closing.writes.count
+        f.time = 0.1
+        _ = f.ticks[1]?()
+        if opening { #expect(!added.writes.isEmpty) }
+        else { #expect(closing.writes.count == writes) }
+        // The surviving animation should be retargeted, not replaced by stale state and cancelled.
+        #expect(f.invalidated.isEmpty)
+        f.time = 0.3
+        _ = f.ticks[1]?()
+        let targets = manager.layoutState.trees[LayoutKey(displayID: 1, spaceID: 10)]?
+            .layout(in: CGRect(x: 8, y: 28, width: 984, height: 764), gap: f.config.store.config.gap)
+        #expect(survivor.frame == targets?[survivor.id])
     }
 
     @Test func sharedSpaceDoesNotMergeDisplays() {

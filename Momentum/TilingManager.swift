@@ -6,7 +6,7 @@ import Observation
     var isEnabled = true {
         didSet {
             if !isEnabled { moveTask?.cancel(); pointerReleaseTask?.cancel(); cancelAnimations() }
-            scheduleRefresh()
+            refresh()
         }
     }
     private(set) var isTrusted = false
@@ -23,7 +23,8 @@ import Observation
     @ObservationIgnored private var inventory = Spaces.DisplayInventory(topology: DisplayTopology(displays: []), desktops: [:])
     @ObservationIgnored private var windows: [WindowID: TilingEnvironment.Window] = [:]
     @ObservationIgnored private var floating: Set<WindowID> = []
-    @ObservationIgnored private var refreshTask: Task<Void, Never>?
+    @ObservationIgnored private var isUpdatingLayout = false
+    @ObservationIgnored private var deferredRefreshTask: Task<Void, Never>?
     @ObservationIgnored private var desktopSwitchTask: Task<Void, Never>?
     @ObservationIgnored private(set) var moveTask: Task<Void, Never>?
     @ObservationIgnored private(set) var pointerReleaseTask: Task<Void, Never>?
@@ -57,7 +58,7 @@ import Observation
         await Permissions.waitForAccessibility()
         isTrusted = true
         AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 1)
-        observer.onEvent = { [weak self] in self?.scheduleRefresh() }
+        observer.onEvent = { [weak self] in self?.refresh() }
         observer.onUserDrag = { [weak self] window, resized in
             self?.trackDrag(of: .native(window), isResize: resized)
         }
@@ -65,7 +66,7 @@ import Observation
         refresh()
     }
 
-    func configurationDidChange() { scheduleRefresh() }
+    func configurationDidChange() { refresh() }
     func retile() { refresh() }
     func dismissDesktopMoveError() { lastDesktopMoveError = nil }
     func dismissDesktopSwitchError() {
@@ -82,17 +83,13 @@ import Observation
         else { lastDesktopSwitchError = "The Dock couldn't be restarted. Try again or restart it manually." }
     }
 
-    private func scheduleRefresh() {
-        refreshTask?.cancel()
-        refreshTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(100))
-            guard !Task.isCancelled else { return }
-            self?.refresh()
-        }
-    }
-
     private func refresh() {
         guard isEnabled, isTrusted, !isSuspended, !isTrackingDrag else { return }
+        // Synchronous AX calls can deliver another event while a refresh or frame write is in flight.
+        // Finish that update before reconciling again; no timed debounce is needed.
+        guard !isUpdatingLayout else { deferRefresh(); return }
+        isUpdatingLayout = true
+        defer { isUpdatingLayout = false }
         inventory = environment.inventory()
         for (id, state) in animations where bounds(for: state.key, in: inventory) != state.bounds {
             cancelAnimation(on: id)
@@ -128,6 +125,15 @@ import Observation
         layoutState.reconcile(visible: visible, connectedDisplays: Set(inventory.topology.displays.map(\.id)),
                               membership: memberships, focused: environment.focusedWindow()?.id)
         for key in visible.keys { apply(key) }
+    }
+
+    private func deferRefresh() {
+        guard deferredRefreshTask == nil else { return }
+        deferredRefreshTask = Task { [weak self] in
+            guard let self else { return }
+            deferredRefreshTask = nil
+            refresh()
+        }
     }
 
     private func apply(_ key: LayoutKey) {
@@ -190,12 +196,15 @@ import Observation
 
     private func animateFrame(on display: DisplayID) -> Bool {
         guard var state = animations[display] else { return false }
+        guard !isUpdatingLayout else { return true }
+        isUpdatingLayout = true
+        defer { isUpdatingLayout = false }
         let live = environment.inventory()
         guard isEnabled, isTrusted, !isSuspended, !isTrackingDrag,
               bounds(for: state.key, in: live) == state.bounds,
               state.targets.keys.allSatisfy({ environment.space($0) == state.key.spaceID }) else {
             cancelAnimation(on: display)
-            scheduleRefresh()
+            refresh()
             return false
         }
         if environment.mousePressed() { return true }
@@ -378,7 +387,6 @@ import Observation
 
     private func startMove(_ operation: @escaping () async throws -> Void) {
         desktopSwitchTask?.cancel()
-        refreshTask?.cancel()
         lastDesktopMoveError = nil
         cancelAnimations()
         isSuspended = true
