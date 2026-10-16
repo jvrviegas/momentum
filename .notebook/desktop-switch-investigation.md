@@ -17,4 +17,8 @@ Fix implemented: `SpaceMover.switchTo()` sends at most three shortcuts, polling 
 
 Verification: regression against old implementation failed (1 restart, 7 sends vs expected 0 / 3). Revised suite: 102 tests passed, including retries, timeout, cancellation, multi-display change, unavailable shortcut, and guarded recovery. Native standalone probe compiled actual `Momentum/SpaceMover.swift` with unused dependency stubs, injected shortcut sender / Space snapshot but real 50 ms waits: timedOut after three sends; own minimized window stayed minimized; Dock PID unchanged. Fixture closed and temporary probe removed. Confirmation UI not manually exercised; installed running Momentum remains old 0.3.1 until rebuilt app is installed/relaunched.
 
-Updated: 2026-10-07
+## Inline recovery confirmation (2026-10-16)
+
+User reports the SwiftUI alert in the `.window` MenuBarExtra closes the popover on either button click and remains pending when reopened; recovery is therefore never invoked. `Momentum/MenuBarContent.swift:dockRestartConfirmation` now renders the warning and Cancel / Restart buttons inline instead of presenting a modal. Confirmation clears on disappearance, error dismissal, loss of recovery eligibility, and either button. The existing explicit recovery guard remains unchanged. Build and all 187 tests pass; no UI automation seam exists for popover click routing. A signed Release build was installed and relaunched, and the user confirmed the recovery UI works. Installation did not restart Dock.
+
+Updated: 2026-10-16

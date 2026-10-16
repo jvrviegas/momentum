@@ -69,13 +69,9 @@ struct MenuBarContent: View {
         }
         .padding(16)
         .frame(width: 340)
-        .alert("Restart the Dock?", isPresented: $confirmsDockRestart) {
-            Button("Cancel", role: .cancel) {}
-            Button("Restart Dock", role: .destructive) {
-                Task { await manager.recoverDesktopSwitching() }
-            }
-        } message: {
-            Text("Restarting the Dock may restore minimized windows and disrupt your desktop. After it restarts, try switching desktops again.")
+        .onDisappear { confirmsDockRestart = false }
+        .onChange(of: manager.canRecoverDesktopSwitching) { _, canRecover in
+            if !canRecover { confirmsDockRestart = false }
         }
     }
 
@@ -219,15 +215,43 @@ struct MenuBarContent: View {
                 Divider()
                 errorMessage(error)
                 if manager.canRecoverDesktopSwitching {
-                    Button(manager.isRecoveringDock ? "Restarting Dock…" : "Restart Dock…") {
-                        confirmsDockRestart = true
+                    if confirmsDockRestart {
+                        dockRestartConfirmation
+                    } else {
+                        Button(manager.isRecoveringDock ? "Restarting Dock…" : "Restart Dock…") {
+                            confirmsDockRestart = true
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(manager.isRecoveringDock)
                     }
-                    .buttonStyle(.bordered)
-                    .disabled(manager.isRecoveringDock)
                 }
-                Button("Dismiss Switch Error") { manager.dismissDesktopSwitchError() }
-                    .buttonStyle(.borderless)
+                Button("Dismiss Switch Error") {
+                    confirmsDockRestart = false
+                    manager.dismissDesktopSwitchError()
+                }
+                .buttonStyle(.borderless)
+                .disabled(manager.isRecoveringDock)
             }
+        }
+    }
+
+    // Keep confirmation inside the MenuBarExtra window. A modal alert can cause the
+    // transient popover to close before its Cancel / Restart buttons receive the click.
+    private var dockRestartConfirmation: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Restart the Dock?").font(.headline)
+            Text("Restarting the Dock may restore minimized windows and disrupt your desktop. After it restarts, try switching desktops again.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Button("Cancel", role: .cancel) { confirmsDockRestart = false }
+                Button("Restart Dock", role: .destructive) {
+                    confirmsDockRestart = false
+                    Task { await manager.recoverDesktopSwitching() }
+                }
+            }
+            .buttonStyle(.bordered)
         }
     }
 
