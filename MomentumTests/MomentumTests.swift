@@ -185,7 +185,7 @@ struct SpaceMoverTests {
         var waits = 0
         let result = await SpaceMover.switchTo(2, send: { sent += 1 },
                                               currentSpaces: { [1] }, wait: { waits += 1 })
-        // No Dock-restart dependency exists in the switching path anymore.
+        // Restarting the Dock after a timeout is TilingManager's last resort, not SpaceMover's.
         #expect(result == .timedOut)
         #expect(sent == 3 && waits == 60)
     }

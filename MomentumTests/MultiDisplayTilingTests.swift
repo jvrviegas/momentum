@@ -48,6 +48,11 @@ final class TilingFixture {
     var moveFailure: Error?
     var onMove: (() -> Void)?
     var onWait: (() -> Void)?
+    var switchResults: [SpaceMover.SwitchResult] = []
+    var switches = 0
+    var dockRestarts = 0
+    var restartsDock = true
+    var onDockRestart: (() -> Void)?
     var errors = 0
     var time = 0.0
     var reduceMotion = false
@@ -84,7 +89,11 @@ final class TilingFixture {
                   self.windows.first { $0.id == id }?.space = space
                   self.onMove?()
               },
-              switchDesktop: { _ in .completed }, restartDock: { false },
+              switchDesktop: { _ in
+                  self.switches += 1
+                  return self.switchResults.isEmpty ? .completed : self.switchResults.removeFirst()
+              },
+              restartDock: { self.dockRestarts += 1; self.onDockRestart?(); return self.restartsDock },
               mousePressed: { self.mouse }, cursor: { self.pointer }, reduceMotion: { self.reduceMotion },
               now: { self.time },
               makeDisplayLink: { id, tick in
@@ -319,6 +328,54 @@ struct MultiDisplayTilingTests {
         f.windows[0].space = 20
         manager.perform(.sendToDesktop(3))
         #expect(manager.lastDesktopMoveError?.contains("this window's display") == true)
+    }
+
+    @Test func ignoredDesktopSwitchRestartsTheDockThenSwitchesAgain() async {
+        let f = TilingFixture(); defer { f.cleanup() }
+        f.switchResults = [.timedOut, .completed]
+        let manager = f.manager()
+        f.onDockRestart = {
+            #expect(manager.isRecoveringDock)
+            manager.perform(.switchToDesktop(3)) // Ignored while the Dock restarts.
+        }
+        manager.perform(.switchToDesktop(2)); await manager.desktopSwitchTask?.value
+        #expect(f.dockRestarts == 1 && f.switches == 2)
+        #expect(!manager.isRecoveringDock)
+        #expect(manager.lastDesktopSwitchError == nil)
+        #expect(!manager.canRecoverDesktopSwitching)
+    }
+
+    @Test func switchStillIgnoredAfterDockRestartOffersManualRecovery() async {
+        let f = TilingFixture(); defer { f.cleanup() }
+        f.switchResults = [.timedOut, .timedOut]
+        let manager = f.manager()
+        manager.perform(.switchToDesktop(2)); await manager.desktopSwitchTask?.value
+        #expect(f.dockRestarts == 1 && f.switches == 2)
+        #expect(manager.lastDesktopSwitchError?.contains("even after restarting the Dock") == true)
+        #expect(manager.canRecoverDesktopSwitching)
+    }
+
+    @Test func failedDockRestartDoesntSwitchAgain() async {
+        let f = TilingFixture(); defer { f.cleanup() }
+        f.switchResults = [.timedOut]
+        f.restartsDock = false
+        let manager = f.manager()
+        manager.perform(.switchToDesktop(2)); await manager.desktopSwitchTask?.value
+        #expect(f.dockRestarts == 1 && f.switches == 1)
+        #expect(manager.lastDesktopSwitchError?.contains("couldn't be restarted") == true)
+        #expect(manager.canRecoverDesktopSwitching)
+        #expect(!manager.isRecoveringDock)
+    }
+
+    @Test func onlyATimedOutSwitchRestartsTheDock() async {
+        for result: SpaceMover.SwitchResult in [.completed, .unchecked, .shortcutUnavailable, .cancelled] {
+            let f = TilingFixture(); defer { f.cleanup() }
+            f.switchResults = [result]
+            let manager = f.manager()
+            manager.perform(.switchToDesktop(2)); await manager.desktopSwitchTask?.value
+            #expect(f.dockRestarts == 0 && f.switches == 1)
+            #expect(!manager.canRecoverDesktopSwitching)
+        }
     }
 
     @Test func sharedSpaceTransfersNeedNoNativeMoveAndCommandsSerializeDuringSettling() async {

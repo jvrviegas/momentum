@@ -25,7 +25,7 @@ import Observation
     @ObservationIgnored private var floating: Set<WindowID> = []
     @ObservationIgnored private var isUpdatingLayout = false
     @ObservationIgnored private var deferredRefreshTask: Task<Void, Never>?
-    @ObservationIgnored private var desktopSwitchTask: Task<Void, Never>?
+    @ObservationIgnored private(set) var desktopSwitchTask: Task<Void, Never>?
     @ObservationIgnored private(set) var moveTask: Task<Void, Never>?
     @ObservationIgnored private(set) var pointerReleaseTask: Task<Void, Never>?
     @ObservationIgnored private var isSuspended = false
@@ -261,12 +261,25 @@ import Observation
             dismissDesktopSwitchError()
             desktopSwitchTask = Task { [weak self] in
                 guard let self else { return }
-                let result = await environment.switchDesktop(number)
+                var result = await environment.switchDesktop(number)
+                // After a wake or display change the Dock can ignore Desktop shortcuts until it restarts.
+                // Restarting it restores minimized windows on some macOS builds, so it's the last resort.
+                if result == .timedOut, !Task.isCancelled {
+                    isRecoveringDock = true
+                    let restarted = await environment.restartDock()
+                    isRecoveringDock = false
+                    guard restarted else {
+                        canRecoverDesktopSwitching = true
+                        lastDesktopSwitchError = "The Dock couldn't be restarted. Try again or restart it manually."
+                        return
+                    }
+                    result = await environment.switchDesktop(number)
+                }
                 guard !Task.isCancelled else { return }
                 switch result {
                 case .timedOut:
                     canRecoverDesktopSwitching = true
-                    lastDesktopSwitchError = "Desktop switching didn't respond after three attempts. You can restart the Dock manually to recover it."
+                    lastDesktopSwitchError = "Desktop switching didn't respond, even after restarting the Dock. You can restart it again manually."
                 case .shortcutUnavailable:
                     lastDesktopSwitchError = "Enable the Switch to Desktop \(number) shortcut in System Settings → Keyboard → Keyboard Shortcuts → Mission Control."
                 case .completed, .unchecked, .cancelled: break

@@ -205,7 +205,7 @@ Drag a tiled window across displays and release it to join the destination layou
 
 Settings remain shared across displays. Source behavior and outstanding validation limits are in the [draft functional spec](docs/spec/multi-display-tiling.md) and [QA record](docs/qa/multi-display-tiling-validation.md).
 
-After waking from sleep or connecting a display, the macOS Dock can stop responding to the “Switch to Desktop N” shortcuts. Momentum retries an ignored switch up to three times without restarting the Dock. If it still fails, the menu shows an error and offers **Restart Dock…** with a confirmation warning: restarting the Dock may restore minimized windows and disrupt your desktop. Recovery is never automatic; after confirming a restart, try your desktop shortcut again.
+After waking from sleep or connecting a display, the macOS Dock can stop responding to the “Switch to Desktop N” shortcuts. Momentum retries an ignored switch up to three times. If all three are ignored, it restarts the Dock and switches again. Restarting the Dock may restore minimized windows and briefly disrupt your desktop. If the switch still fails, the menu shows an error and offers **Restart Dock…** with a confirmation; after a manual restart, try your desktop shortcut again.
 
 ## Keep Awake
 

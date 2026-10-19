@@ -21,4 +21,8 @@ Verification: regression against old implementation failed (1 restart, 7 sends v
 
 User reports the SwiftUI alert in the `.window` MenuBarExtra closes the popover on either button click and remains pending when reopened; recovery is therefore never invoked. `Momentum/MenuBarContent.swift:dockRestartConfirmation` now renders the warning and Cancel / Restart buttons inline instead of presenting a modal. Confirmation clears on disappearance, error dismissal, loss of recovery eligibility, and either button. The existing explicit recovery guard remains unchanged. Build and all 187 tests pass; no UI automation seam exists for popover click routing. A signed Release build was installed and relaunched, and the user confirmed the recovery UI works. Installation did not restart Dock.
 
-Updated: 2026-10-16
+## Automatic restart reinstated (2026-10-19)
+
+User accepts that a Dock restart restores minimized windows and wants it automatic again. `TilingManager.perform(.switchToDesktop)` now restarts the Dock when `SpaceMover.switchTo()` times out after its three shortcuts, then calls `switchDesktop` once more. Hotkeys are ignored during the restart via `isRecoveringDock`. A failed restart, or a switch still ignored afterward, shows the error with the existing confirmed manual **Restart Dock…**. There is no once-per-launch/wake limit: each switch that times out may restart the Dock once. Tests: 191 pass; the three new restart tests fail against the previous logic.
+
+Updated: 2026-10-19

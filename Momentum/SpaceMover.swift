@@ -57,7 +57,7 @@ enum SpaceMover {
         case cancelled
     }
 
-    /// Switches using the system shortcut. Recovery must never silently restart the Dock:
+    /// Switches using the system shortcut. Restarting the Dock after a timeout is left to the caller:
     /// terminating it restores minimized windows on some macOS builds.
     static func switchTo(desktop number: Int) async -> SwitchResult {
         guard let shortcut = desktopShortcut(number) else { return .shortcutUnavailable }
@@ -97,7 +97,7 @@ enum SpaceMover {
         return .timedOut
     }
 
-    /// Explicit user-confirmed recovery only. Restores minimized windows on some macOS builds.
+    /// Last-resort recovery for ignored Desktop shortcuts. Restores minimized windows on some macOS builds.
     /// Quits the Dock, as `killall Dock` does, and waits until launchd's relaunch has finished launching.
     static func restartDock() async -> Bool {
         let bundleID = "com.apple.dock"
