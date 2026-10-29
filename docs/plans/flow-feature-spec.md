@@ -4,7 +4,7 @@
 
 | | |
 |---|---|
-| **Status** | Draft from the UX pass; awaiting owner review. No implementation started |
+| **Status** | Approved by the owner, including the decisions listed under "Decisions to confirm in review"; implementation in progress on `feat/flow` |
 | **Owner** | João |
 | **Tech reviewer** | Pending implementation plan |
 | **Client sign-off / Linear project** | N/A — personal Momentum project; repository-local spec |
@@ -144,3 +144,4 @@ The owner chose the name **Flow**, notifications at session and break end, and a
 | Date | Change | Agreed with |
 |---|---|---|
 | 2026-10-29 | UX pass: name, notifications, and break model chosen by the owner; draft behaviors and UX written | João |
+| 2026-10-29 | Spec approved as written, including the UX pass's own decisions; implementation started | João |
