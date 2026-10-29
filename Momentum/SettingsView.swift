@@ -77,27 +77,27 @@ struct SettingsView: View {
             List(SettingsPage.allCases, selection: selection) { item in
                 Label(item.title, systemImage: item.icon)
                     .tag(item)
-                    .padding(.vertical, 4)
+                    .padding(.vertical, Space.xs)
             }
             .listStyle(.sidebar)
             .safeAreaInset(edge: .bottom, alignment: .leading, spacing: 0) {
                 AppVersionLabel()
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
+                    .padding(.horizontal, Space.lg)
+                    .padding(.vertical, Space.md)
             }
-            .navigationSplitViewColumnWidth(min: 190, ideal: 200, max: 240)
+            .navigationSplitViewColumnWidth(min: Layout.sidebarMinWidth, ideal: Layout.sidebarIdealWidth, max: Layout.sidebarMaxWidth)
             .navigationTitle("Momentum")
             .toolbar(removing: .sidebarToggle)
             .accessibilityLabel("Settings sections")
         } detail: {
             VStack(alignment: .leading, spacing: 0) {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: Space.sm) {
                     Text(page.subtitle).foregroundStyle(.secondary)
                     if let error = configStore.lastError {
                         warning(error)
                     }
                 }
-                .padding(24)
+                .padding(Space.xl)
 
                 Form {
                     switch page {
@@ -115,7 +115,8 @@ struct SettingsView: View {
             .navigationTitle(page.title)
         }
         .navigationSplitViewStyle(.balanced)
-        .frame(minWidth: 720, idealWidth: 780, minHeight: 540, idealHeight: 600)
+        .frame(minWidth: Layout.settingsMinSize.width, idealWidth: Layout.settingsIdealSize.width,
+               minHeight: Layout.settingsMinSize.height, idealHeight: Layout.settingsIdealSize.height)
         .sheet(isPresented: $isPickingApps) {
             AppPickerSheet(selection: $configStore.config.floatingBundleIDs)
         }
@@ -217,7 +218,7 @@ struct SettingsView: View {
                             HStack {
                                 if controller.failedHotKeys.contains(action) {
                                     Image(systemName: "exclamationmark.triangle.fill")
-                                        .foregroundStyle(.yellow)
+                                        .foregroundStyle(Palette.warning)
                                         .help("This shortcut is inactive: another action already uses it, or macOS refused it.")
                                         .accessibilityLabel("Shortcut inactive: duplicate or refused by macOS")
                                 }
@@ -283,9 +284,12 @@ struct SettingsView: View {
     private var advancedSettings: some View {
         Group {
             Section {
-                Label(manager.isTrusted ? "Tiling permissions granted" : "Tiling permissions required",
-                      systemImage: manager.isTrusted ? "checkmark.circle" : "exclamationmark.triangle")
-                    .foregroundStyle(manager.isTrusted ? Color.secondary : Color.orange)
+                if manager.isTrusted {
+                    Label("Tiling permissions granted", systemImage: "checkmark.circle")
+                        .foregroundStyle(.secondary)
+                } else {
+                    WarningLabel("Tiling permissions required")
+                }
                 Text("Allow Momentum under System Settings › Privacy & Security › Device Control and Data Access. Keep Awake works without these permissions.")
                     .foregroundStyle(.secondary)
                 Button("Open Privacy & Security Settings") {
@@ -314,9 +318,7 @@ struct SettingsView: View {
     }
 
     private func warning(_ message: String) -> some View {
-        Label(message, systemImage: "exclamationmark.triangle")
-            .foregroundStyle(.orange)
-            .fixedSize(horizontal: false, vertical: true)
+        WarningLabel(message)
             .textSelection(.enabled)
     }
 
@@ -392,7 +394,7 @@ private struct AppIcon: View {
     var body: some View {
         Image(nsImage: url.map { NSWorkspace.shared.icon(forFile: $0.path) } ?? NSWorkspace.shared.icon(for: .application))
             .resizable()
-            .frame(width: 20, height: 20)
+            .frame(width: Layout.rowIcon, height: Layout.rowIcon)
     }
 }
 
@@ -436,7 +438,7 @@ private struct AppPickerSheet: View {
             }
             .padding()
         }
-        .frame(width: 420, height: 520)
+        .frame(width: Layout.appPickerSize.width, height: Layout.appPickerSize.height)
         .task {
             apps = await Task.detached { InstalledApp.scan() }.value
         }
@@ -467,7 +469,7 @@ struct HotKeyRecorder: View {
         Button(isRecording ? "Press keys…" : (combo?.displayString ?? "None")) {
             isRecording ? stopRecording() : startRecording()
         }
-        .frame(minWidth: 100)
+        .frame(minWidth: Layout.shortcutMinWidth)
         .onDisappear(perform: stopRecording)
     }
 
