@@ -63,8 +63,8 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
         isTrusted = true
         AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 1)
         observer.onEvent = { [weak self] in self?.refresh() }
-        observer.onUserDrag = { [weak self] window, resized in
-            self?.trackDrag(of: .native(window), isResize: resized)
+        observer.onUserDrag = { [weak self, queues = observer.queues] window, resized in
+            self?.trackDrag(of: .native(window, queues: queues), isResize: resized)
         }
         observer.start()
         refresh()

@@ -2,7 +2,9 @@ import AppKit
 import ApplicationServices
 
 /// Thin wrapper over an Accessibility window element. Frames use top-left origin global coordinates.
-struct AXWindow {
+/// Not tied to the main actor: calls wait on the other app, so they run on that app's queue (`AXQueues`).
+/// Unchecked: an element is an immutable reference, and Accessibility calls on it are thread-safe.
+nonisolated struct AXWindow: @unchecked Sendable {
     let element: AXUIElement
     let pid: pid_t
     let id: WindowID
@@ -88,15 +90,15 @@ struct AXWindow {
         return succeeded
     }
 
-    func focus() {
+    /// Brings the window to the front of its app; activating the app is left to the caller.
+    func raise() {
         AXUIElementSetAttributeValue(element, kAXMainAttribute as CFString, kCFBooleanTrue)
         AXUIElementPerformAction(element, kAXRaiseAction as CFString)
-        NSRunningApplication(processIdentifier: pid)?.activate()
     }
 
 }
 
-extension AXUIElement {
+nonisolated extension AXUIElement {
     func value<T>(of attribute: String) -> T? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(self, attribute as CFString, &value) == .success else { return nil }

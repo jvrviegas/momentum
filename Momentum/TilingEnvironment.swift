@@ -14,11 +14,15 @@ struct TilingEnvironment {
         var isStandard: Bool { readStandard() }
         var frame: CGRect? { readFrame() }
 
-        static func native(_ window: AXWindow) -> Self {
+        /// Writes and focus run on the app's own queue; a write reports success once submitted.
+        static func native(_ window: AXWindow, queues: AXQueues) -> Self {
             Self(id: window.id, bundleID: NSRunningApplication(processIdentifier: window.pid)?.bundleIdentifier,
                  readStandard: { window.isStandard }, readFrame: { window.frame },
-                 writeFrame: { window.setFrame($0, from: $1, forceResize: $2, repairClamping: $3) },
-                 focus: { window.focus() })
+                 writeFrame: {
+                     queues.writeFrame(window, $0, from: $1, forceResize: $2, repairClamping: $3)
+                     return true
+                 },
+                 focus: { queues.focus(window) })
         }
     }
 
@@ -45,11 +49,11 @@ struct TilingEnvironment {
 
     static func native(observer: WindowObserver) -> Self {
         Self(inventory: { Spaces.displayInventory() },
-             windows: { observer.allWindows().map(Window.native) },
+             windows: { observer.allWindows().map { .native($0, queues: observer.queues) } },
              focusedWindow: {
                  guard let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier,
                        let window = AXWindow.focused(in: pid) else { return nil }
-                 return Window.native(window)
+                 return .native(window, queues: observer.queues)
              },
              space: { Spaces.space(for: $0) },
              existingWindowIDs: {

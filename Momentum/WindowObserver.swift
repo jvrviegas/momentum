@@ -7,6 +7,7 @@ final class WindowObserver {
     var onEvent: (() -> Void)?
     /// Called for each step of the user moving or resizing a window with the mouse; the flag is true for resize steps.
     var onUserDrag: ((AXWindow, _ isResize: Bool) -> Void)?
+    let queues = AXQueues()
 
     private var observers: [pid_t: AXObserver] = [:]
     private var tasks: [Task<Void, Never>] = []
@@ -140,6 +141,7 @@ final class WindowObserver {
     }
 
     private func stopObserving(_ pid: pid_t) {
+        queues.forget(pid)
         guard let observer = observers.removeValue(forKey: pid) else { return }
         CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .defaultMode)
     }
