@@ -35,7 +35,7 @@ The rules below describe implemented branch behavior. Automated tests verify sta
 - **KA-05.** When a finite deadline is reached, the session stops silently. Until stopped has no scheduled expiry.
 - **KA-06.** When a valid timed session is extended by +15/+30/+60 minutes, that amount is added to the existing deadline without changing saved duration or imposing an eight-hour accumulated cap. Inactive, indefinite or expired sessions cannot be extended; indefinite sessions omit extension controls.
 - **KA-07.** When an active mode change succeeds, protection changes immediately, the original deadline remains, and the new default mode is saved. Existing protection remains held while additions are acquired and preferences are saved.
-- **KA-08.** When a session is active, the label selects the static Charged icon: the Momentum mark with a bold central lightning bolt. Timed sessions add minutes rounded up and the popover derives its status from the same deadline; indefinite sessions omit the number. Inactive sessions select the existing icon. Native rendering, closed-popover countdown and expiry passed; the owner confirmed keyboard/light-appearance checks.
+- **KA-08.** When a session is active, the label selects the static Charged icon: the Momentum mark with a bold central lightning bolt. Timed sessions add minutes rounded up and the popover derives its status from the same deadline; indefinite sessions omit the number. Inactive sessions select the existing icon. Native rendering, closed-popover countdown and expiry passed; the owner confirmed keyboard/light-appearance checks. While Flow is active, Flow's countdown replaces this countdown in the label and the Charged icon still shows (FL-12). The label's accessibility name is "Momentum", and its value lists Flow and Keep Awake status.
 
 ### Lifecycle and independence
 
@@ -47,7 +47,7 @@ The rules below describe implemented branch behavior. Automated tests verify sta
 - **KA-14.** When the screen locks, Momentum does not change its session/deadline or simulate input/unlock. Display idle protection is only a request; macOS can turn the locked display off. User-confirmed lock/unlock preserved both requests and the elapsed deadline in M3.
 - **KA-15.** When protection is active, Momentum uses only public idle-sleep assertions, not unconditional system-sleep prevention. Explicit Sleep, lid-close, lock and critical-battery safeguards remain governed by macOS. This is an API boundary, not a guarantee of wakefulness; critical battery exhaustion is not tested.
 - **KA-16.** When preferences or bindings are saved, they use the shared `~/.config/momentum/tiling.json`. Runtime state is never encoded. Valid external edits update future defaults/bindings without changing an active mode/deadline.
-- **KA-17.** The native window-style popover places Keep Awake first, existing tiling/move-error controls below, and Settings, Check for Updates and Quit afterward. Controls have accessibility labels and native selectors; Settings activation and Command-comma/Command-Q are retained. The owner confirmed keyboard/appearance/command checks. VoiceOver testing was explicitly declined by the owner, not recorded as passed.
+- **KA-17.** The native window-style popover places Flow first, Keep Awake second, existing tiling/move-error controls below, and Settings, Check for Updates and Quit afterward. Controls have accessibility labels and native selectors; Settings activation and Command-comma/Command-Q are retained. The owner confirmed keyboard/appearance/command checks. VoiceOver testing was explicitly declined by the owner, not recorded as passed.
 
 ### Errors and limits
 
@@ -75,7 +75,7 @@ The rules below describe implemented branch behavior. Automated tests verify sta
 - Merge approval combines independent native/component evidence with owner-reported idle/display, expired-wake and ordinary UI results. VoiceOver was skipped at owner request, not passed. Critical-battery exhaustion was intentionally excluded. This is not a guarantee of all macOS behavior or a public release claim; evidence is recorded in the validation document.
 - Assertion release failures retain unresolved IDs and surface a diagnostic. Cleanup makes at most two attempts per ID per command and can be retried; stopping clears session state but does not claim every request was removed if an error remains. OS process-exit cleanup is the final boundary.
 - Mode changes save the candidate before native completion, but publish preferences only after completion succeeds. If native completion fails, the previous file is restored. If that restoration also fails because the filesystem has become unavailable, runtime mode and in-memory preferences remain unchanged and both failures are reported; successful on-disk restoration cannot be claimed until the filesystem is repaired.
-- There is no custom duration, clock-time deadline, input simulation, power automation, focus timer or session restoration.
+- There is no custom duration, clock-time deadline, input simulation or power automation. Flow can start an Until stopped session and stops only the one it started (FL-14 to FL-16).
 - UI tests prove derived status/visibility/Retry choices, not keyboard focus or VoiceOver behavior.
 
 ---

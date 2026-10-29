@@ -4,7 +4,7 @@
 
 | | |
 |---|---|
-| **Status** | Approved by the owner, including the decisions listed under "Decisions to confirm in review"; implementation in progress on `feat/flow` |
+| **Status** | Approved and implemented on `feat/flow`; automated tests and state snapshots pass; manual validation (real notifications, sleep/wake, VoiceOver, keyboard-only) pending |
 | **Owner** | João |
 | **Tech reviewer** | Pending implementation plan |
 | **Client sign-off / Linear project** | N/A — personal Momentum project; repository-local spec |
@@ -145,3 +145,4 @@ The owner chose the name **Flow**, notifications at session and break end, and a
 |---|---|---|
 | 2026-10-29 | UX pass: name, notifications, and break model chosen by the owner; draft behaviors and UX written | João |
 | 2026-10-29 | Spec approved as written, including the UX pass's own decisions; implementation started | João |
+| 2026-10-29 | Implemented; the menu-bar state symbol is drawn into the icon because a menu-bar item shows only one image | — |
