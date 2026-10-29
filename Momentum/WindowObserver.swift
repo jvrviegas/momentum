@@ -24,11 +24,12 @@ final class WindowObserver {
 
     private var observers: [pid_t: AXObserver] = [:]
     private var tasks: [Task<Void, Never>] = []
-    /// Each observed app's windows as of the last `reload()`.
+    /// Each observed app's windows as of its last answered read.
     private var apps: [pid_t: AppWindows] = [:]
-    /// The reload each app's windows came from; an older reload can finish after a newer one.
-    private var appliedReload: [pid_t: Int] = [:]
-    private var reloads = 0
+    /// Each app's read in progress. A reload joins it rather than queuing another behind a busy app.
+    private var reads: [pid_t: Task<Void, Never>] = [:]
+    /// Apps whose read outlasted a reload's wait; when they answer, `onEvent` reports their windows.
+    private var lateReads: Set<pid_t> = []
     /// Windows registered for their destroyed notification, as of the last `reload()`.
     private var watchedWindows: Set<WindowID> = []
 
@@ -76,22 +77,42 @@ final class WindowObserver {
         return app.windows.first { $0.window.id == id }
     }
 
-    /// Rereads every observed app's windows, each on its own queue, so a busy app delays only this update,
-    /// never the main thread. An app that doesn't answer in time keeps its last known windows.
+    /// Rereads every observed app's windows, each on its own queue, so a busy app never blocks the main thread.
+    /// Waits at most 100 ms, which answering apps meet even mid-animation: a busy app keeps its last known
+    /// windows until it answers, so it can't hold up the layout of every other app.
     func reload() async {
-        reloads += 1
-        let reload = reloads, watched = watchedWindows
-        let reads = observers.keys.map { pid in
-            Task { (pid, await queues.run(pid) { Self.read(pid, watched: watched) }) }
+        let pids = Array(observers.keys)
+        guard !pids.isEmpty else { return }
+        for pid in pids where reads[pid] == nil { reads[pid] = startRead(pid) }
+        let (landed, continuation) = AsyncStream<pid_t?>.makeStream()
+        for pid in pids {
+            Task { [read = reads[pid]] in await read?.value; continuation.yield(pid) }
         }
-        for read in reads {
-            let (pid, result) = await read.value
-            guard let result, observers[pid] != nil, appliedReload[pid, default: 0] < reload else { continue }
-            appliedReload[pid] = reload
+        let deadline = Task { try? await Task.sleep(for: .milliseconds(100)); continuation.yield(nil) }
+        var waiting = Set(pids)
+        for await pid in landed {
+            guard let pid else { break }
+            waiting.remove(pid)
+            if waiting.isEmpty { break }
+        }
+        deadline.cancel()
+        continuation.finish()
+        lateReads.formUnion(waiting.filter { reads[$0] != nil })
+    }
+
+    private func startRead(_ pid: pid_t) -> Task<Void, Never> {
+        let watched = watchedWindows
+        return Task {
+            let result = await queues.run(pid) { Self.read(pid, watched: watched) }
+            reads[pid] = nil
+            let late = lateReads.remove(pid) != nil
+            // An app that didn't answer keeps its last known windows; it may have quit meanwhile.
+            guard let result, observers[pid] != nil else { return }
             apps[pid] = result.app
             for window in result.unwatched { watchDestruction(of: window.element, pid: pid) }
+            watchedWindows = Set(windows.map(\.window.id))
+            if late { onEvent?() }
         }
-        watchedWindows = Set(windows.map(\.window.id))
     }
 
     // MARK: - Private
@@ -201,7 +222,7 @@ final class WindowObserver {
     private func stopObserving(_ pid: pid_t) {
         queues.forget(pid)
         apps[pid] = nil
-        appliedReload[pid] = nil
+        lateReads.remove(pid)
         guard let observer = observers.removeValue(forKey: pid) else { return }
         CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .defaultMode)
     }
