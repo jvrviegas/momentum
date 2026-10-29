@@ -110,13 +110,13 @@ struct FlowPanel: View {
         VStack(alignment: .leading, spacing: Space.xs) {
             // Seconds tick only while the popover is open; the menu bar shows whole minutes (FL-12).
             TimelineView(.periodic(from: .now, by: 1)) { _ in
+                // On the Text itself: around the TimelineView, VoiceOver loses the value.
                 Text(FlowPresentation.clock(flow.liveRemaining() ?? 0))
                     .font(.title2.weight(.semibold))
                     .monospacedDigit()
+                    .accessibilityLabel(presentation.title)
+                    .accessibilityValue(presentation.minutesLeft ?? "")
             }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(presentation.title)
-            .accessibilityValue(presentation.minutesLeft ?? "")
             Text(presentation.caption(endingAt: .now.addingTimeInterval(flow.liveRemaining() ?? 0)))
                 .font(.caption)
                 .foregroundStyle(.secondary)

@@ -43,6 +43,8 @@ struct MomentumMenuLabel: View {
         let awake = KeepAwakePresentation(keepAwake)
         let flowState = FlowPresentation(flow, preferences: configStore.config.flow)
         let status = [flowState.spokenStatus, "Keep Awake: \(awake.status)"].compactMap { $0 }.joined(separator: " · ")
+        // A menu-bar item passes on only its name, so the state goes in the name for VoiceOver.
+        let name = ["Momentum", flowState.spokenStatus, awake.isActive ? "Keep Awake on" : nil].compactMap { $0 }.joined(separator: ", ")
         HStack(spacing: Space.xs) {
             icon(awake.iconName, symbol: flowState.menuSymbol)
             // Flow's countdown wins the text; the Keep Awake icon still shows (FL-12).
@@ -51,8 +53,7 @@ struct MomentumMenuLabel: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Momentum")
-        .accessibilityValue(status)
+        .accessibilityLabel(name)
         .help(status)
     }
 
