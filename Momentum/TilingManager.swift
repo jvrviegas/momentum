@@ -48,6 +48,11 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
         var frames: [WindowID: CGRect] = [:]
         var targets: [WindowID: CGRect] = [:]
         var link: TilingEnvironment.DisplayLink?
+        /// Tells this animation's Space checks apart from those of an animation that replaced it.
+        let id = UUID()
+        var spaceCheck: Task<Void, Never>?
+        /// Windows the last Space check found on another Space, or on none.
+        var offSpace: Set<WindowID> = []
     }
 
     init(configStore: ConfigStore, environment: TilingEnvironment? = nil, initiallyTrusted: Bool = false) {
@@ -226,14 +231,16 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
         isUpdatingLayout = true
         let signpost = tilingSignposter.beginInterval("tick")
         defer { isUpdatingLayout = false; tilingSignposter.endInterval("tick", signpost) }
-        let live = environment.inventory()
+        // Still showing the animation's Space also means the display is still eligible: a Space's kind never changes.
         guard isEnabled, isTrusted, !isSuspended, !isTrackingDrag,
-              bounds(for: state.key, in: live) == state.bounds,
-              state.targets.keys.allSatisfy({ environment.space($0) == state.key.spaceID }) else {
+              let live = environment.display(display), live.activeSpace?.id == state.key.spaceID,
+              live.tilingBounds(padding: config.outerPadding) == state.bounds,
+              state.offSpace.isDisjoint(with: state.targets.keys) else {
             cancelAnimation(on: display)
             refresh()
             return false
         }
+        if state.spaceCheck == nil { state.spaceCheck = checkSpaces(of: state, on: display) }
         if environment.mousePressed() { return true }
         if !config.shouldAnimate(reduceMotion: environment.reduceMotion()) {
             writeImmediately(state.targets)
@@ -254,7 +261,21 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
         return true
     }
 
+    /// Windows' Spaces are read off the main thread, because WindowServer can take milliseconds to answer
+    /// while windows resize; a window that left the animation's Space stops it on the next frame.
+    private func checkSpaces(of state: AnimationState, on display: DisplayID) -> Task<Void, Never> {
+        let windows = Array(state.targets.keys), animation = state.id, space = state.key.spaceID
+        return Task { [weak self, environment] in
+            let spaces = await environment.spaces(windows)
+            guard let self, animations[display]?.id == animation else { return }
+            animations[display]?.spaceCheck = nil
+            // The next frame compares these with its targets, so a window the animation stopped moving doesn't count.
+            animations[display]?.offSpace = Set(windows.filter { spaces[$0] != space })
+        }
+    }
+
     private func cancelAnimation(on display: DisplayID) {
+        animations[display]?.spaceCheck?.cancel()
         animations[display]?.link?.invalidate()
         animations[display] = nil
     }

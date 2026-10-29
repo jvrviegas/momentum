@@ -36,9 +36,13 @@ struct TilingEnvironment {
     }
 
     var inventory: () -> Spaces.DisplayInventory
+    /// One display, without the Desktop list that makes `inventory` slow; its Space's kind is unknown.
+    var display: (DisplayID) -> DisplayTopology.Display?
     var windows: () -> [Window]
     var focusedWindow: () -> Window?
     var space: (WindowID) -> SpaceID?
+    /// The same as `space` for several windows, without waiting on the main thread.
+    var spaces: ([WindowID]) async -> [WindowID: SpaceID]
     var existingWindowIDs: () -> Set<WindowID>?
     var serverFrame: (WindowID) -> CGRect?
     var moveToSpace: (WindowID, SpaceID) async throws -> Void
@@ -56,6 +60,7 @@ struct TilingEnvironment {
 
     static func native(observer: WindowObserver) -> Self {
         Self(inventory: { Spaces.displayInventory() },
+             display: { Spaces.display($0) },
              windows: { observer.windows.map { .native($0, queues: observer.queues) } },
              focusedWindow: {
                  guard let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier,
@@ -63,6 +68,7 @@ struct TilingEnvironment {
                  return .native(window, queues: observer.queues)
              },
              space: { Spaces.space(for: $0) },
+             spaces: { await Spaces.spaces(for: $0) },
              existingWindowIDs: {
                  guard let list = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID)
                      as? [[String: Any]] else { return nil }

@@ -4,7 +4,7 @@ typealias SpaceID = UInt64
 
 /// Reads native Space membership and Desktop order through the private bridge.
 enum Spaces {
-    private static let allSpacesMask: Int32 = 0x7
+    private nonisolated static let allSpacesMask: Int32 = 0x7
 
     /// The Space currently shown on the main display.
     static var mainDisplaySpace: SpaceID {
@@ -145,6 +145,25 @@ enum Spaces {
                          separateSpaces: NSScreen.screensHaveSeparateSpaces, sharedSpace: CGSGetActiveSpace(CGSMainConnectionID()))
     }
 
+    /// One display's geometry and the Space it shows now. Unlike `displayInventory` it doesn't read every
+    /// Desktop, so it's cheap enough for every animation frame. The Space's kind is reported as unknown.
+    static func display(_ id: DisplayID) -> DisplayTopology.Display? {
+        let screens = NSScreen.screens
+        guard let primary = screens.first, let screen = screens.first(where: {
+            ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == id
+        }) else { return nil }
+        let connection = CGSMainConnectionID()
+        var space = CGSGetActiveSpace(connection)
+        if NSScreen.screensHaveSeparateSpaces {
+            guard let uuid = CGDisplayCreateUUIDFromDisplayID(id)?.takeRetainedValue(),
+                  let identifier = CFUUIDCreateString(nil, uuid) else { return nil }
+            space = CGSManagedDisplayGetCurrentSpace(connection, identifier)
+        }
+        return .init(id: id, frame: DisplayTopology.axFrame(fromAppKit: screen.frame, primaryFrame: primary.frame),
+                     usableFrame: DisplayTopology.axFrame(fromAppKit: screen.visibleFrame, primaryFrame: primary.frame),
+                     activeSpace: space == 0 ? nil : .init(id: space, kind: .unknown))
+    }
+
     /// Shared mode reuses the legacy active-Space matching strategy, but accepts only an
     /// unambiguous normalized snapshot. Its live OS shape remains unvalidated, not guessed.
     static func inventory(screens: [ScreenInput], primaryFrame: CGRect, managed: [[String: Any]],
@@ -173,8 +192,16 @@ enum Spaces {
     }
 
     /// The Space that `window` lives on.
-    static func space(for window: WindowID) -> SpaceID? {
+    nonisolated static func space(for window: WindowID) -> SpaceID? {
         let spaces = CGSCopySpacesForWindows(CGSMainConnectionID(), allSpacesMask, [window] as CFArray) as? [NSNumber]
         return spaces?.first?.uint64Value
+    }
+
+    /// Each window's Space, read off the main thread: while windows resize, WindowServer can take
+    /// milliseconds to answer.
+    @concurrent nonisolated static func spaces(for windows: [WindowID]) async -> [WindowID: SpaceID] {
+        var spaces: [WindowID: SpaceID] = [:]
+        for window in windows { spaces[window] = space(for: window) }
+        return spaces
     }
 }
