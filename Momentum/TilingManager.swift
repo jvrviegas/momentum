@@ -1,5 +1,9 @@
 import AppKit
 import Observation
+import os
+
+/// Names main-thread tiling work in Instruments traces.
+let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", category: "tiling")
 
 /// Independent layouts for each logical display and native Desktop.
 @Observable final class TilingManager {
@@ -89,7 +93,8 @@ import Observation
         // Finish that update before reconciling again; no timed debounce is needed.
         guard !isUpdatingLayout else { deferRefresh(); return }
         isUpdatingLayout = true
-        defer { isUpdatingLayout = false }
+        let signpost = tilingSignposter.beginInterval("refresh")
+        defer { isUpdatingLayout = false; tilingSignposter.endInterval("refresh", signpost) }
         inventory = environment.inventory()
         for (id, state) in animations where bounds(for: state.key, in: inventory) != state.bounds {
             cancelAnimation(on: id)
@@ -198,7 +203,8 @@ import Observation
         guard var state = animations[display] else { return false }
         guard !isUpdatingLayout else { return true }
         isUpdatingLayout = true
-        defer { isUpdatingLayout = false }
+        let signpost = tilingSignposter.beginInterval("tick")
+        defer { isUpdatingLayout = false; tilingSignposter.endInterval("tick", signpost) }
         let live = environment.inventory()
         guard isEnabled, isTrusted, !isSuspended, !isTrackingDrag,
               bounds(for: state.key, in: live) == state.bounds,
@@ -217,7 +223,9 @@ import Observation
         for (id, frame) in state.model.frames(at: environment.now()) {
             guard let window = windows[id] else { continue }
             let finalResize = resizing.contains(id) && !state.model.isAnimating(id)
+            let write = tilingSignposter.beginInterval("write", "\(window.bundleID ?? "?", privacy: .public)")
             let succeeded = window.writeFrame(frame, state.frames[id], finalResize, finalResize)
+            tilingSignposter.endInterval("write", write)
             state.frames[id] = succeeded ? frame : nil
         }
         animations[display] = state

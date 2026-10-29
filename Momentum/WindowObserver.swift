@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import os
 
 /// Watches apps and their windows, and calls `onEvent` whenever the window layout may need updating.
 final class WindowObserver {
@@ -113,6 +114,8 @@ final class WindowObserver {
     @discardableResult
     private func observe(_ pid: pid_t) -> Bool {
         guard pid != ProcessInfo.processInfo.processIdentifier else { return true }
+        let signpost = tilingSignposter.beginInterval("observe", "\(pid)")
+        defer { tilingSignposter.endInterval("observe", signpost) }
         let observer: AXObserver
         if let existing = observers[pid] {
             observer = existing
