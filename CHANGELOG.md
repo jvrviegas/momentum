@@ -2,6 +2,21 @@
 
 Notable changes to Momentum are documented here. Versions follow Semantic Versioning; `0.x` releases are early-stage and may change before stabilization.
 
+## [0.6.3] - 2026-10-29
+
+Early-stage prerelease with a development-signed app ZIP for local testing. It is not Developer ID-signed or notarized; automatic-update delivery is not validated.
+
+### Changed
+
+- Tiling animations keep a steadier frame rate. Each frame now takes a fraction of a millisecond, down from up to 39 ms, so fewer frames arrive late, especially on 120 Hz displays.
+- A window moved to another Desktop while it's animating stops one frame later than before. Switching Desktops or changing displays still stops the animation at once.
+
+### Compatibility
+
+- Validation includes 205 automated tests and Release-build traces of animations, shortcuts, and unresponsive apps.
+- Existing native Desktop API, SIP, and multi-display validation limitations remain unchanged.
+- The downloadable ZIP is a development build for testing, not a notarized installer or a signed Sparkle update.
+
 ## [0.6.2] - 2026-10-29
 
 Early-stage prerelease with a development-signed app ZIP for local testing. It is not Developer ID-signed or notarized; automatic-update delivery is not validated.
