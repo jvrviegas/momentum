@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | **Area owner** | João |
-| **Verification** | 2026-10-10: native integration tests; separate-Spaces/custom-SIP helper feasibility and fullscreen snapshot replay; 2026-10-12: 179 tests, 16 native coordinator checks and 19 owner-observed guarded-preview manual passes; unrestricted/compatibility limits remain |
+| **Verification** | 2026-10-10: native integration tests; separate-Spaces/custom-SIP helper feasibility and fullscreen snapshot replay; 2026-10-12: 179 tests, 16 native coordinator checks and 19 owner-observed guarded-preview manual passes; unrestricted/compatibility limits remain; 2026-10-29: 205 tests and Release-build traces with a main-thread probe across animation, shortcut and unresponsive-app scenarios (MD-17 to MD-20) |
 
 ## Overview
 
@@ -48,6 +48,13 @@ This worktree tiles normal windows on each logical display's visible Desktop ind
 - **MD-15.** When Desktop N is unavailable on the selected display, Momentum reports an error without sending the window. A same-Desktop command is a no-op.
 - **MD-16.** When a request, frame write, closure, timeout or destination change prevents confirmation, Momentum reconciles actual state and shows a dismissible move error; it does not follow focus or assert successful transfer. Partial native changes cannot be promised to roll back atomically. No SIP change, synthetic drag or automatic Dock restart is performed.
 
+### Responsiveness
+
+- **MD-17.** When an app doesn't answer Accessibility, Momentum's main thread doesn't wait on it: each app's window reads, frame writes and focus run on that app's own queue, and registering for its notifications gives up after 40 ms and retries for about 10 seconds.
+- **MD-18.** When an app doesn't answer a window read within 1 second, its windows keep their last known place in the layout instead of being removed and reinserted.
+- **MD-19.** When an app applies frame writes slower than an animation runs, its windows skip intermediate frames and still receive the final frame; other windows' animations are unaffected.
+- **MD-20.** When a window shortcut is pressed, it acts on windows read after the key press, in the order the shortcuts were pressed.
+
 ## Permissions
 
 | Action | Requirements | Notes |
@@ -59,7 +66,7 @@ This worktree tiles normal windows on each logical display's visible Desktop ind
 
 ## Integrations and side effects
 
-- `WindowObserver` already supplies window, active-Space and screen-parameter events. One window enumeration partitions a refresh across layouts.
+- `WindowObserver` already supplies window, active-Space and screen-parameter events. Each refresh reconciles one snapshot of every observed app's windows, read off the main thread on a serial queue per app (`AXQueues`), which frame writes and focus share.
 - Display links target their own screens. Invalidated/abandoned link proxies do not retain the manager.
 - Native transfer reuses the unsupported bridged Space operation, then AX frame writes and independent WindowServer reads. Verification samples every 20 ms with a bounded timeout; small logical rounding is tolerated, not a different minimum size.
 - Native move errors reuse the existing menu/Settings surface. New shortcuts have no defaults; no extra global hotkeys are registered automatically.
@@ -70,7 +77,7 @@ This worktree tiles normal windows on each logical display's visible Desktop ind
 - Fully enabled SIP compatibility is unverified; owner approved implementation with that explicit gap. Do not ask users to disable SIP.
 - Shared-Spaces live tests were skipped at owner's request, not passed. Conservative fixture-based shared normalization may leave unfamiliar native snapshots unmanaged.
 - Mirroring-specific runtime inventory and final mixed-scale/refresh animation smoothness are unverified. Pure exact-frame mirror deduplication is not full mirroring QA.
-- Applications can refuse resizing or impose minimum sizes; a transfer that cannot settle to its requested usable placement reports failure rather than pretending it fit.
+- Applications can refuse resizing or impose minimum sizes; a transfer that cannot settle to its requested usable placement reports failure rather than pretending it fit. Frame writes report success once submitted, so an app refusing a transfer's write surfaces as the confirmation timeout, not a refused-write error.
 - Inactive membership queries that lack evidence of closure retain layout entries; actual visible ownership reconciles on refresh.
 - Prior MDF foundation-only unavailable/inert rules were superseded by this native integration. The proposal remains unarchived until acceptance.
 

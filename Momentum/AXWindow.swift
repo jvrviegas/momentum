@@ -2,7 +2,9 @@ import AppKit
 import ApplicationServices
 
 /// Thin wrapper over an Accessibility window element. Frames use top-left origin global coordinates.
-struct AXWindow {
+/// Not tied to the main actor: calls wait on the other app, so they run on that app's queue (`AXQueues`).
+/// Unchecked: an element is an immutable reference, and Accessibility calls on it are thread-safe.
+nonisolated struct AXWindow: @unchecked Sendable {
     let element: AXUIElement
     let pid: pid_t
     let id: WindowID
@@ -15,25 +17,24 @@ struct AXWindow {
         self.id = windowID
     }
 
-    /// The application's focused window.
-    static func focused(in pid: pid_t) -> AXWindow? {
-        let app = AXUIElementCreateApplication(pid)
-        guard let element: AXUIElement = app.value(of: kAXFocusedWindowAttribute) else { return nil }
-        return AXWindow(element: element, pid: pid)
-    }
-
-    /// Normal, visible document-style windows; excludes dialogs, sheets, minimized and fullscreen windows,
-    /// and windows of hidden apps (AX keeps listing those).
-    var isStandard: Bool {
-        guard NSRunningApplication(processIdentifier: pid)?.isHidden != true else { return false }
-        let role: String? = element.value(of: kAXRoleAttribute)
-        let subrole: String? = element.value(of: kAXSubroleAttribute)
-        let minimized: Bool? = element.value(of: kAXMinimizedAttribute)
-        let fullscreen: Bool? = element.value(of: "AXFullScreen")
-        return role == kAXWindowRole
-            && subrole == kAXStandardWindowSubrole
-            && minimized != true
-            && fullscreen != true
+    /// Everything the layout needs, in one round trip to the app; nil if the app didn't answer in time.
+    /// Standard means a normal document-style window: not a dialog, sheet, minimized or fullscreen window.
+    /// Hidden apps still list their windows, so the caller checks that separately.
+    func readState() -> (isStandard: Bool, frame: CGRect?)? {
+        let attributes = [kAXRoleAttribute, kAXSubroleAttribute, kAXMinimizedAttribute, "AXFullScreen",
+                          kAXPositionAttribute, kAXSizeAttribute] as CFArray
+        var values: CFArray?
+        let result = AXUIElementCopyMultipleAttributeValues(element, attributes, AXCopyMultipleAttributeOptions(), &values)
+        guard result != .cannotComplete else { return nil }
+        // Attributes the window lacks come back as error values, which read as nil below.
+        guard let values = values as? [AnyObject], values.count == 6 else { return (false, nil) }
+        let isStandard = values[0] as? String == kAXWindowRole
+            && values[1] as? String == kAXStandardWindowSubrole
+            && values[2] as? Bool != true
+            && values[3] as? Bool != true
+        guard let position: CGPoint = decodeAXValue(values[4], type: .cgPoint),
+              let size: CGSize = decodeAXValue(values[5], type: .cgSize) else { return (isStandard, nil) }
+        return (isStandard, CGRect(origin: position, size: size))
     }
 
     var frame: CGRect? {
@@ -88,15 +89,24 @@ struct AXWindow {
         return succeeded
     }
 
-    func focus() {
+    /// Brings the window to the front of its app; activating the app is left to the caller.
+    func raise() {
         AXUIElementSetAttributeValue(element, kAXMainAttribute as CFString, kCFBooleanTrue)
         AXUIElementPerformAction(element, kAXRaiseAction as CFString)
-        NSRunningApplication(processIdentifier: pid)?.activate()
     }
 
 }
 
-extension AXUIElement {
+private nonisolated func decodeAXValue<T>(_ value: CFTypeRef, type: AXValueType) -> T? {
+    guard CFGetTypeID(value) == AXValueGetTypeID() else { return nil }
+    let pointer = UnsafeMutablePointer<T>.allocate(capacity: 1)
+    defer { pointer.deallocate() }
+    // The cast is safe: the type ID was checked above.
+    guard AXValueGetValue(value as! AXValue, type, pointer) else { return nil }
+    return pointer.pointee
+}
+
+nonisolated extension AXUIElement {
     func value<T>(of attribute: String) -> T? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(self, attribute as CFString, &value) == .success else { return nil }
@@ -106,12 +116,8 @@ extension AXUIElement {
     func axValue<T>(of attribute: String, type: AXValueType) -> T? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(self, attribute as CFString, &value) == .success,
-              let value, CFGetTypeID(value) == AXValueGetTypeID() else { return nil }
-        let pointer = UnsafeMutablePointer<T>.allocate(capacity: 1)
-        defer { pointer.deallocate() }
-        // The cast is safe: the type ID was checked above.
-        guard AXValueGetValue(value as! AXValue, type, pointer) else { return nil }
-        return pointer.pointee
+              let value else { return nil }
+        return decodeAXValue(value, type: type)
     }
 
     func setAXValue<T: BitwiseCopyable>(_ value: T, of attribute: String, type: AXValueType) -> Bool {
