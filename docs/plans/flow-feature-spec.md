@@ -4,11 +4,11 @@
 
 | | |
 |---|---|
-| **Status** | Approved and implemented on `feat/flow`; agent checks passed (see `docs/qa/flow-validation.md`); owner checks pending: real notifications, sleep/wake, VoiceOver, keyboard-only |
+| **Status** | Implemented and owner-accepted; kept for history |
 | **Owner** | João |
 | **Tech reviewer** | Pending implementation plan |
 | **Client sign-off / Linear project** | N/A — personal Momentum project; repository-local spec |
-| **Merged into** | Not yet; README "Road to v1" › "Stay focused" tracks it |
+| **Merged into** | `docs/spec/flow.md` (2026-10-29) |
 
 ## Problem
 
@@ -146,3 +146,4 @@ The owner chose the name **Flow**, notifications at session and break end, and a
 | 2026-10-29 | UX pass: name, notifications, and break model chosen by the owner; draft behaviors and UX written | João |
 | 2026-10-29 | Spec approved as written, including the UX pass's own decisions; implementation started | João |
 | 2026-10-29 | Implemented; the menu-bar state symbol is drawn into the icon because a menu-bar item shows only one image | — |
+| 2026-10-29 | Owner confirmed notifications, sleep/wake, VoiceOver, and keyboard checks; rules merged into `docs/spec/flow.md` | João |

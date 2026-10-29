@@ -79,7 +79,7 @@ This is the **single high-level feature tracker for v1**. Checked features are i
 | --- | --- | --- |
 | 🪟 **Window management** | Core tiling implemented; multi-display awaiting validation | Unrestricted real-app/startup checks and fully enabled SIP compatibility |
 | ☕ **Keep Awake** | Implemented and owner-accepted | Preserve accepted behavior as focus tools are added |
-| 🎯 **Focus tools** | Flow implemented; awaiting validation | Owner checks: real notifications, sleep/wake, VoiceOver |
+| 🎯 **Focus tools** | Flow implemented and owner-accepted | Preserve accepted behavior; include Flow in the next release |
 | 🚀 **App experience** | Basic menu-bar app and permission guidance implemented | Launch at login and permission recovery |
 | 📦 **Distribution** | Installer tooling and updater infrastructure exist | Signed, notarized distribution and verified update delivery |
 
@@ -115,12 +115,12 @@ Keep Awake has passed automated/native checks and owner-confirmed manual accepta
 
 ### 🎯 Stay focused
 
-- [ ] **Awaiting validation:** Flow, a lightweight session timer (15–90 minutes) with Pause, End Flow, and optional shortcuts.
-- [ ] **Awaiting validation:** breaks after each session, with a notification when a session or break ends.
-- [ ] **Awaiting validation:** Flow sessions that can keep the Mac awake.
-- [ ] **Awaiting validation:** Flow stops only the Keep Awake it started, so an earlier session stays as it was.
+- [x] Flow, a lightweight session timer (15–90 minutes) with Pause, End Flow, and optional shortcuts.
+- [x] Breaks after each session, with a notification when a session or break ends.
+- [x] Flow sessions that can keep the Mac awake.
+- [x] Flow stops only the Keep Awake it started, so an earlier session stays as it was.
 
-Flow has passed automated checks and agent-verified UI, Keep Awake, and accessibility-name checks. Real notifications, sleep/wake, and VoiceOver await owner validation; see the [validation record](docs/qa/flow-validation.md).
+Flow has passed automated, agent-verified, and owner-confirmed checks, including notifications, sleep/wake, and VoiceOver; see the [validation record](docs/qa/flow-validation.md) and the [functional spec](docs/spec/flow.md).
 
 ### 🚀 Stay out of your way
 
