@@ -120,7 +120,8 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
             cancelAnimation(on: id)
         }
         let current = environment.windows()
-        let existing = environment.existingWindowIDs()
+        // Listing every window is slow, and only a window without a Space needs it.
+        lazy var existing = environment.existingWindowIDs()
         var memberships: [WindowID: DisplayLayoutState.Membership] = [:]
         let remembered = Set(layoutState.trees.values.flatMap(\.windows)).union(floating).union(current.map(\.id))
         for id in remembered {

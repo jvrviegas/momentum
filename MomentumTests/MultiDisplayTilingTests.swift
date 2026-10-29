@@ -45,6 +45,7 @@ final class TilingFixture {
     var windows: [FakeTilingWindow] = []
     var focusedID: WindowID?
     var enumerations = 0
+    var windowListings = 0
     var moves: [(WindowID, SpaceID)] = []
     var moveFailure: Error?
     var onMove: (() -> Void)?
@@ -82,7 +83,7 @@ final class TilingFixture {
               windows: { self.enumerations += 1; return self.windows.map(\.handle) },
               focusedWindow: { self.windows.first { $0.id == self.focusedID }?.handle },
               space: { id in self.windows.first { $0.id == id }?.space },
-              existingWindowIDs: { Set(self.windows.map(\.id)) },
+              existingWindowIDs: { self.windowListings += 1; return Set(self.windows.map(\.id)) },
               serverFrame: { id in self.windows.first { $0.id == id }?.serverFrame },
               moveToSpace: { id, space in
                   if let failure = self.moveFailure { throw failure }
@@ -626,6 +627,18 @@ struct MultiDisplayTilingTests {
 
     private func waitUntil(_ condition: () -> Bool) async {
         for _ in 0..<100 where !condition() { await Task.yield() }
+    }
+
+    @Test func listsEveryWindowOnlyWhenAWindowHasNoSpace() {
+        let f = TilingFixture(); defer { f.cleanup() }
+        f.windows = [FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 400, height: 300), space: 10),
+                     FakeTilingWindow(2, CGRect(x: 10, y: 30, width: 400, height: 300), space: 10)]
+        let manager = f.manager(); manager.retile()
+        #expect(f.windowListings == 0)
+        f.windows.removeLast()
+        manager.retile()
+        #expect(f.windowListings == 1)
+        #expect(manager.layoutState.trees[LayoutKey(displayID: 1, spaceID: 10)]?.windows == [1])
     }
 
     @Test func trustDisableAndDuplicateIDsDoNotCauseExtraWrites() {
