@@ -25,6 +25,7 @@ final class FakeTilingWindow {
     }
     var handle: TilingEnvironment.Window {
         .init(id: id, bundleID: bundleID, readStandard: { self.standard }, readFrame: { self.frame },
+              readCurrentFrame: { self.frame },
               writeFrame: { frame, previous, resize, repair in
                   self.writes.append(frame)
                   self.writeFrom.append(previous)
@@ -580,6 +581,51 @@ struct MultiDisplayTilingTests {
         manager.isEnabled = false
         #expect(f.ticks.isEmpty)
         #expect(f.invalidated == [1])
+    }
+
+    @Test func reloadingEnvironmentReconcilesAfterTheReadAndRereadsOnceForEventsDuringIt() async {
+        let f = TilingFixture(); defer { f.cleanup() }
+        let window = FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 400, height: 300), space: 10)
+        f.windows = [window]
+        var environment = f.environment
+        var reloads = 0
+        var release: CheckedContinuation<Void, Never>?
+        environment.reload = { reloads += 1; await withCheckedContinuation { release = $0 } }
+        let manager = TilingManager(configStore: f.config.store, environment: environment, initiallyTrusted: true)
+        manager.retile()
+        await waitUntil { release != nil }
+        manager.retile(); manager.retile()
+        #expect(window.writes.isEmpty)
+        #expect(reloads == 1)
+        release?.resume(); release = nil
+        await waitUntil { release != nil }
+        #expect(window.writes.count == 1)
+        #expect(reloads == 2)
+        release?.resume(); release = nil
+        for _ in 0..<20 { await Task.yield() }
+        #expect(reloads == 2)
+    }
+
+    @Test func shortcutsWaitForAFreshReadEach() async {
+        let f = TilingFixture(); defer { f.cleanup() }
+        f.windows = [FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 200, height: 100), space: 10),
+                     FakeTilingWindow(2, CGRect(x: 10, y: 30, width: 200, height: 100), space: 10)]
+        f.focusedID = 1
+        var environment = f.environment
+        var reloads = 0
+        environment.reload = { reloads += 1; await Task.yield() }
+        let manager = TilingManager(configStore: f.config.store, environment: environment, initiallyTrusted: true)
+        manager.perform(.focus(.right))
+        manager.perform(.focus(.left))
+        #expect(f.windows.allSatisfy { $0.focused == 0 })
+        await manager.actionTask?.value
+        #expect(reloads == 2)
+        #expect(f.windows[1].focused == 1)
+        #expect(f.windows[0].focused == 0)
+    }
+
+    private func waitUntil(_ condition: () -> Bool) async {
+        for _ in 0..<100 where !condition() { await Task.yield() }
     }
 
     @Test func trustDisableAndDuplicateIDsDoNotCauseExtraWrites() {

@@ -29,6 +29,9 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
     @ObservationIgnored private var floating: Set<WindowID> = []
     @ObservationIgnored private var isUpdatingLayout = false
     @ObservationIgnored private var deferredRefreshTask: Task<Void, Never>?
+    @ObservationIgnored private var reloadTask: Task<Void, Never>?
+    @ObservationIgnored private var needsReload = false
+    @ObservationIgnored private(set) var actionTask: Task<Void, Never>?
     @ObservationIgnored private(set) var desktopSwitchTask: Task<Void, Never>?
     @ObservationIgnored private(set) var moveTask: Task<Void, Never>?
     @ObservationIgnored private(set) var pointerReleaseTask: Task<Void, Never>?
@@ -63,8 +66,8 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
         isTrusted = true
         AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 1)
         observer.onEvent = { [weak self] in self?.refresh() }
-        observer.onUserDrag = { [weak self, queues = observer.queues] window, resized in
-            self?.trackDrag(of: .native(window, queues: queues), isResize: resized)
+        observer.onUserDrag = { [weak self] window, resized in
+            self?.trackDrag(of: window.id, isResize: resized)
         }
         observer.start()
         refresh()
@@ -89,7 +92,24 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
 
     private func refresh() {
         guard isEnabled, isTrusted, !isSuspended, !isTrackingDrag else { return }
-        // Synchronous AX calls can deliver another event while a refresh or frame write is in flight.
+        guard let reload = environment.reload else { reconcile(); return }
+        // Reading windows waits on other apps, so it runs off the main thread; reconcile once it lands.
+        // Events during a reload ask for one more, so the layout always ends on the latest windows.
+        guard reloadTask == nil else { needsReload = true; return }
+        reloadTask = Task { [weak self] in
+            let signpost = tilingSignposter.beginInterval("reload", id: tilingSignposter.makeSignpostID())
+            await reload()
+            tilingSignposter.endInterval("reload", signpost)
+            guard let self else { return }
+            reloadTask = nil
+            reconcile()
+            if needsReload { needsReload = false; refresh() }
+        }
+    }
+
+    private func reconcile() {
+        guard isEnabled, isTrusted, !isSuspended, !isTrackingDrag else { return }
+        // A synchronous frame write (as in tests) can deliver another event while an update is in flight.
         // Finish that update before reconciling again; no timed debounce is needed.
         guard !isUpdatingLayout else { deferRefresh(); return }
         isUpdatingLayout = true
@@ -262,6 +282,26 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
     func perform(_ action: Action) {
         guard isTrusted, !isSuspended, !isRecoveringDock, !isTrackingDrag else { return }
         switch action {
+        case .switchToDesktop, .toggleKeepAwake, .toggleFlow, .endFlow: break
+        default:
+            guard let reload = environment.reload else { break }
+            // Act on the windows as they are now, in the order the shortcuts were pressed.
+            let signpost = tilingSignposter.beginInterval("action", id: tilingSignposter.makeSignpostID())
+            let previous = actionTask
+            actionTask = Task { [weak self] in
+                await previous?.value
+                await reload()
+                self?.performNow(action)
+                tilingSignposter.endInterval("action", signpost)
+            }
+            return
+        }
+        performNow(action)
+    }
+
+    private func performNow(_ action: Action) {
+        guard isTrusted, !isSuspended, !isRecoveringDock, !isTrackingDrag else { return }
+        switch action {
         case .sendToDesktop(let number): sendToDesktop(number)
         case .switchToDesktop(let number):
             cancelAnimations()
@@ -299,8 +339,8 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
         case .toggleFloat:
             guard let window = environment.focusedWindow(), window.isStandard else { return }
             if floating.remove(window.id) == nil { floating.insert(window.id) }
-            refresh()
-        case .retile: refresh()
+            reconcile()
+        case .retile: reconcile()
         case .toggleKeepAwake, .toggleFlow, .endFlow: break
         case .sendToPreviousDisplay: sendToDisplay(.previous)
         case .sendToNextDisplay: sendToDisplay(.next)
@@ -308,7 +348,7 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
     }
 
     private func focus(_ direction: Direction) {
-        refresh()
+        reconcile()
         guard let window = environment.focusedWindow(), let key = key(for: window, in: inventory),
               let bounds = bounds(for: key, in: inventory), let tree = layoutState.trees[key],
               tree.contains(window.id) else { return }
@@ -332,7 +372,7 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
     }
 
     private func swap(_ direction: Direction) {
-        refresh()
+        reconcile()
         guard let window = environment.focusedWindow(), let key = key(for: window, in: inventory),
               let bounds = bounds(for: key, in: inventory) else { return }
         if layoutState.swap(window.id, direction: direction, in: key, bounds: bounds) { apply(key) }
@@ -367,7 +407,7 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
         guard let window = environment.focusedWindow(), let source = key(for: window, in: snapshot),
               let destination = snapshot.topology.destination(from: source.displayID, step: step) else { return }
         // A single eligible display is a true no-op, including layout/frame writes.
-        refresh()
+        reconcile()
         transfer(window, to: destination, in: snapshot)
     }
 
@@ -392,7 +432,7 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
             target = placement
         }
         let client = DisplayMover.Client(topology: { self.environment.inventory().topology },
-            membership: { self.environment.space(window.id) }, frame: { window.frame },
+            membership: { self.environment.space(window.id) }, frame: window.readCurrentFrame,
             serverFrame: { self.environment.serverFrame(window.id) },
             moveSpace: { try await self.environment.moveToSpace(window.id, $0) },
             writeFrame: { target in
@@ -420,17 +460,20 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
         }
     }
 
-    private func trackDrag(of window: TilingEnvironment.Window, isResize: Bool) {
-        guard isEnabled, !isSuspended, window.isStandard else { return }
+    private func trackDrag(of id: WindowID, isResize: Bool) {
+        guard isEnabled, !isSuspended, environment.windows().first(where: { $0.id == id })?.isStandard == true else { return }
         guard !isTrackingDrag else { if isResize { dragResized = true }; return }
         cancelAnimations()
         isTrackingDrag = true
         dragResized = isResize
-        dragSource = layoutState.trees.first(where: { $0.value.contains(window.id) })?.key
+        dragSource = layoutState.trees.first(where: { $0.value.contains(id) })?.key
         Task { [weak self] in
             guard let self else { return }
             while environment.mousePressed() { try? await environment.wait() }
+            // The drop needs where the drag left the window.
+            await environment.reload?()
             isTrackingDrag = false
+            guard let window = environment.windows().first(where: { $0.id == id }) else { return }
             drop(window, source: dragSource, resized: dragResized)
         }
     }
@@ -452,6 +495,6 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
            let target = tree.window(at: cursor, excluding: window.id, in: bounds, gap: config.gap) {
             layoutState.swap(window.id, with: target, in: source)
         }
-        refresh()
+        reconcile()
     }
 }

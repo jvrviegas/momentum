@@ -19,7 +19,7 @@ enum DisplayMover {
     struct Client {
         var topology: () -> DisplayTopology
         var membership: () -> SpaceID?
-        var frame: () -> CGRect?
+        var frame: () async -> CGRect?
         var serverFrame: () -> CGRect?
         var moveSpace: (SpaceID) async throws -> Void
         var writeFrame: (CGRect) -> Bool
@@ -46,7 +46,7 @@ enum DisplayMover {
         for _ in 0..<150 {
             try validateDestination()
             guard let current = client.membership() else { throw MoveError.windowUnavailable }
-            let actual = client.frame(), server = client.serverFrame()
+            let actual = await client.frame(), server = client.serverFrame()
             let agrees = current == space && actual.map { matches($0, target) } == true
                 && server.map { matches($0, target) } == true
                 && actual.flatMap { client.topology().owner(of: $0)?.id } == destination.id

@@ -59,7 +59,7 @@ final class AXQueues {
         }
     }
 
-    private func run<T: Sendable>(_ pid: pid_t, _ work: @escaping @Sendable () -> T) async -> T {
+    func run<T: Sendable>(_ pid: pid_t, _ work: @escaping @Sendable () -> T) async -> T {
         let queue = queues[pid] ?? DispatchQueue(label: "com.joaoviegas.Momentum.ax.\(pid)")
         queues[pid] = queue
         return await withCheckedContinuation { continuation in

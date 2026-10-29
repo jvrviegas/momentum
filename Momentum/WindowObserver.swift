@@ -9,9 +9,27 @@ final class WindowObserver {
     var onUserDrag: ((AXWindow, _ isResize: Bool) -> Void)?
     let queues = AXQueues()
 
+    /// One window as last read from its app.
+    nonisolated struct WindowState: Sendable {
+        let window: AXWindow
+        let bundleID: String?
+        let isStandard: Bool
+        let frame: CGRect?
+    }
+
+    private nonisolated struct AppWindows: Sendable {
+        let windows: [WindowState]
+        let focused: WindowID?
+    }
+
     private var observers: [pid_t: AXObserver] = [:]
     private var tasks: [Task<Void, Never>] = []
-    /// Windows registered for their destroyed notification, as of the last `allWindows()`.
+    /// Each observed app's windows as of the last `reload()`.
+    private var apps: [pid_t: AppWindows] = [:]
+    /// The reload each app's windows came from; an older reload can finish after a newer one.
+    private var appliedReload: [pid_t: Int] = [:]
+    private var reloads = 0
+    /// Windows registered for their destroyed notification, as of the last `reload()`.
     private var watchedWindows: Set<WindowID> = []
 
     private static let appNotifications = [
@@ -50,19 +68,30 @@ final class WindowObserver {
         tasks.append(Task { [weak self] in await self?.pollOnScreenWindows() })
     }
 
-    /// All windows of observed apps. AX only reports windows on the currently visible Spaces.
-    func allWindows() -> [AXWindow] {
-        let windows = observers.keys.flatMap { pid -> [AXWindow] in
-            let app = AXUIElementCreateApplication(pid)
-            let elements: [AXUIElement] = app.value(of: kAXWindowsAttribute) ?? []
-            return elements.compactMap { AXWindow(element: $0, pid: pid) }
+    /// All windows of observed apps as of the last `reload()`. AX only reports windows on the currently visible Spaces.
+    var windows: [WindowState] { apps.values.flatMap(\.windows) }
+
+    func focusedWindow(in pid: pid_t) -> WindowState? {
+        guard let app = apps[pid], let id = app.focused else { return nil }
+        return app.windows.first { $0.window.id == id }
+    }
+
+    /// Rereads every observed app's windows, each on its own queue, so a busy app delays only this update,
+    /// never the main thread. An app that doesn't answer in time keeps its last known windows.
+    func reload() async {
+        reloads += 1
+        let reload = reloads, watched = watchedWindows
+        let reads = observers.keys.map { pid in
+            Task { (pid, await queues.run(pid) { Self.read(pid, watched: watched) }) }
         }
-        // Each registration is a round trip to the app, so only register windows not seen last time.
-        for window in windows where !watchedWindows.contains(window.id) {
-            watchDestruction(of: window.element, pid: window.pid)
+        for read in reads {
+            let (pid, result) = await read.value
+            guard let result, observers[pid] != nil, appliedReload[pid, default: 0] < reload else { continue }
+            appliedReload[pid] = reload
+            apps[pid] = result.app
+            for window in result.unwatched { watchDestruction(of: window.element, pid: pid) }
         }
-        watchedWindows = Set(windows.map(\.id))
-        return windows
+        watchedWindows = Set(windows.map(\.window.id))
     }
 
     // MARK: - Private
@@ -87,6 +116,32 @@ final class WindowObserver {
             }
             try? await Task.sleep(for: .seconds(1))
         }
+    }
+
+    /// Runs on the app's queue. Nil when the app doesn't answer in time.
+    private nonisolated static func read(_ pid: pid_t, watched: Set<WindowID>) -> (app: AppWindows, unwatched: [AXWindow])? {
+        let app = AXUIElementCreateApplication(pid)
+        var list: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &list) != .cannotComplete else { return nil }
+        let running = NSRunningApplication(processIdentifier: pid)
+        var windows: [WindowState] = []
+        for element in list as? [AXUIElement] ?? [] {
+            guard let window = AXWindow(element: element, pid: pid) else { continue }
+            guard let state = window.readState() else { return nil }
+            windows.append(WindowState(window: window, bundleID: running?.bundleIdentifier,
+                                       isStandard: state.isStandard && running?.isHidden != true, frame: state.frame))
+        }
+        let focused: AXUIElement? = app.value(of: kAXFocusedWindowAttribute)
+        // Each registration is a round trip to the app, so only new windows get one. It runs on the main thread,
+        // so it gets its own references with a short timeout; the ones above also carry frame writes.
+        var unwatched: [AXWindow] = []
+        if windows.contains(where: { !watched.contains($0.window.id) }) {
+            for element: AXUIElement in app.value(of: kAXWindowsAttribute) ?? [] {
+                AXUIElementSetMessagingTimeout(element, 0.04)
+                if let window = AXWindow(element: element, pid: pid), !watched.contains(window.id) { unwatched.append(window) }
+            }
+        }
+        return (AppWindows(windows: windows, focused: focused.flatMap { AXWindow(element: $0, pid: pid)?.id }), unwatched)
     }
 
     private static func onScreenWindowIDs() -> Set<WindowID> {
@@ -145,6 +200,8 @@ final class WindowObserver {
 
     private func stopObserving(_ pid: pid_t) {
         queues.forget(pid)
+        apps[pid] = nil
+        appliedReload[pid] = nil
         guard let observer = observers.removeValue(forKey: pid) else { return }
         CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .defaultMode)
     }
@@ -157,6 +214,8 @@ final class WindowObserver {
     }
 
     fileprivate func handle(_ element: AXUIElement, notification: String) {
+        // This runs on the main thread, so don't wait long on the app behind the notification.
+        AXUIElementSetMessagingTimeout(element, 0.04)
         var pid: pid_t = 0
         AXUIElementGetPid(element, &pid)
         switch notification {
