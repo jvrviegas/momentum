@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="Momentum/Assets.xcassets/AppIcon.appiconset/icon_128.png" width="80" height="80" alt="Momentum icon">
+  <img src="docs/assets/app-icon.png" width="80" height="80" alt="Momentum icon">
 </p>
 
 <h1 align="center">Momentum</h1>
@@ -79,7 +79,7 @@ This is the **single high-level feature tracker for v1**. Checked features are i
 | --- | --- | --- |
 | 🪟 **Window management** | Core tiling implemented; multi-display awaiting validation | Unrestricted real-app/startup checks and fully enabled SIP compatibility |
 | ☕ **Keep Awake** | Implemented and owner-accepted | Preserve accepted behavior as focus tools are added |
-| 🎯 **Focus tools** | Planned | Timer, break reminders, and optional Keep Awake integration |
+| 🎯 **Focus tools** | Flow implemented and owner-accepted | Preserve accepted behavior; include Flow in the next release |
 | 🚀 **App experience** | Basic menu-bar app and permission guidance implemented | Launch at login and permission recovery |
 | 📦 **Distribution** | Installer tooling and updater infrastructure exist | Signed, notarized distribution and verified update delivery |
 
@@ -115,10 +115,12 @@ Keep Awake has passed automated/native checks and owner-confirmed manual accepta
 
 ### 🎯 Stay focused
 
-- [ ] **Planned:** lightweight focus timer with configurable duration and keyboard controls.
-- [ ] **Planned:** optional break reminders.
-- [ ] **Planned:** focus sessions that can optionally enable Keep Awake.
-- [ ] **Planned:** restore the previous Keep Awake state when a focus session ends or is cancelled.
+- [x] Flow, a lightweight session timer (15–90 minutes) with Pause, End Flow, and optional shortcuts.
+- [x] Breaks after each session, with a notification when a session or break ends.
+- [x] Flow sessions that can keep the Mac awake.
+- [x] Flow stops only the Keep Awake it started, so an earlier session stays as it was.
+
+Flow has passed automated, agent-verified, and owner-confirmed checks, including notifications, sleep/wake, and VoiceOver; see the [validation record](docs/qa/flow-validation.md) and the [functional spec](docs/spec/flow.md).
 
 ### 🚀 Stay out of your way
 
@@ -137,6 +139,7 @@ Keep Awake has passed automated/native checks and owner-confirmed manual accepta
 
 - **Multi-display:** [implementation plan](docs/plans/multi-display-tiling-implementation-plan.md).
 - **Keep Awake:** [implementation plan](docs/plans/keep-awake-implementation-plan.md) · [validation record](docs/qa/keep-awake-validation.md).
+- **Flow:** [feature spec](docs/plans/flow-feature-spec.md) · [validation record](docs/qa/flow-validation.md).
 - **Focus and release work:** tracked above; add detailed plans when work begins.
 
 > **Outside v1:** clipboard history, app launching, notes, task management, and detailed productivity analytics.

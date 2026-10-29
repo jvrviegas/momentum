@@ -1,5 +1,7 @@
 # Repository instructions
 
+Design rules: `design/DESIGN-SYSTEM.md`. Use its tokens; never raw colors, radii, or durations.
+
 ## GitHub account for origin
 
 This repository's `origin` is owned by `jvrviegas`.

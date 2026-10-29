@@ -2,7 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 enum SettingsPage: String, CaseIterable, Identifiable {
-    case layout, floatingApps, shortcuts, keepAwake, advanced
+    case layout, floatingApps, shortcuts, flow, keepAwake, advanced
 
     var id: String { rawValue }
     var title: String {
@@ -10,6 +10,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .layout: "Layout"
         case .floatingApps: "Floating Apps"
         case .shortcuts: "Keyboard Shortcuts"
+        case .flow: "Flow"
         case .keepAwake: "Keep Awake"
         case .advanced: "Advanced"
         }
@@ -19,6 +20,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .layout: "rectangle.split.2x2"
         case .floatingApps: "macwindow.on.rectangle"
         case .shortcuts: "keyboard"
+        case .flow: "timer"
         case .keepAwake: "cup.and.saucer"
         case .advanced: "gearshape.2"
         }
@@ -28,6 +30,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .layout: "Adjust window spacing and motion."
         case .floatingApps: "Choose apps that should stay outside automatic tiling."
         case .shortcuts: "Customize how you navigate and arrange your workspace."
+        case .flow: "Set how long Flow sessions and breaks last."
         case .keepAwake: "Choose preferences for your next Keep Awake session."
         case .advanced: "Manage permissions and the configuration file."
         }
@@ -49,7 +52,7 @@ enum SettingsShortcutGroup: String, CaseIterable, Identifiable {
             case .move: self == .move
             case .sendToDesktop, .switchToDesktop: self == .desktops
             case .sendToPreviousDisplay, .sendToNextDisplay: self == .displays
-            case .toggleFloat, .retile, .toggleKeepAwake: self == .other
+            case .toggleFloat, .retile, .toggleKeepAwake, .toggleFlow, .endFlow: self == .other
             }
         }
     }
@@ -59,6 +62,7 @@ struct SettingsView: View {
     @Bindable var configStore: ConfigStore
     let manager: TilingManager
     let controller: AppController
+    let flow: FlowService
 
     @AppStorage("settings.selectedPage") private var selectedPage = SettingsPage.layout.rawValue
     @State private var newBundleID = ""
@@ -77,33 +81,34 @@ struct SettingsView: View {
             List(SettingsPage.allCases, selection: selection) { item in
                 Label(item.title, systemImage: item.icon)
                     .tag(item)
-                    .padding(.vertical, 4)
+                    .padding(.vertical, Space.xs)
             }
             .listStyle(.sidebar)
             .safeAreaInset(edge: .bottom, alignment: .leading, spacing: 0) {
                 AppVersionLabel()
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
+                    .padding(.horizontal, Space.lg)
+                    .padding(.vertical, Space.md)
             }
-            .navigationSplitViewColumnWidth(min: 190, ideal: 200, max: 240)
+            .navigationSplitViewColumnWidth(min: Layout.sidebarMinWidth, ideal: Layout.sidebarIdealWidth, max: Layout.sidebarMaxWidth)
             .navigationTitle("Momentum")
             .toolbar(removing: .sidebarToggle)
             .accessibilityLabel("Settings sections")
         } detail: {
             VStack(alignment: .leading, spacing: 0) {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: Space.sm) {
                     Text(page.subtitle).foregroundStyle(.secondary)
                     if let error = configStore.lastError {
                         warning(error)
                     }
                 }
-                .padding(24)
+                .padding(Space.margin)
 
                 Form {
                     switch page {
                     case .layout: layoutSettings
                     case .floatingApps: floatingSettings
                     case .shortcuts: shortcutSettings
+                    case .flow: flowSettings
                     case .keepAwake: keepAwakeSettings
                     case .advanced: advancedSettings
                     }
@@ -115,7 +120,9 @@ struct SettingsView: View {
             .navigationTitle(page.title)
         }
         .navigationSplitViewStyle(.balanced)
-        .frame(minWidth: 720, idealWidth: 780, minHeight: 540, idealHeight: 600)
+        .noInitialFocus()
+        .frame(minWidth: Layout.settingsMinSize.width, idealWidth: Layout.settingsIdealSize.width,
+               minHeight: Layout.settingsMinSize.height, idealHeight: Layout.settingsIdealSize.height)
         .sheet(isPresented: $isPickingApps) {
             AppPickerSheet(selection: $configStore.config.floatingBundleIDs)
         }
@@ -217,7 +224,7 @@ struct SettingsView: View {
                             HStack {
                                 if controller.failedHotKeys.contains(action) {
                                     Image(systemName: "exclamationmark.triangle.fill")
-                                        .foregroundStyle(.yellow)
+                                        .foregroundStyle(Palette.warning)
                                         .help("This shortcut is inactive: another action already uses it, or macOS refused it.")
                                         .accessibilityLabel("Shortcut inactive: duplicate or refused by macOS")
                                 }
@@ -253,6 +260,48 @@ struct SettingsView: View {
         }
     }
 
+    private var flowSettings: some View {
+        Group {
+            Section {
+                Picker("Session duration", selection: flowPreference(\.duration)) {
+                    ForEach(FlowDuration.allCases, id: \.self) { duration in
+                        Text(duration.title).tag(duration)
+                    }
+                }
+                Toggle("Keep Mac awake during sessions", isOn: flowPreference(\.keepAwake))
+            } header: {
+                Text("Sessions")
+            } footer: {
+                Text("Uses your Keep Awake mode. If Keep Awake is already on, Flow leaves it as it is.")
+            }
+            Section("Breaks") {
+                Toggle("Take a break after each session", isOn: flowPreference(\.breaksEnabled))
+                Picker("Break duration", selection: flowPreference(\.breakDuration)) {
+                    ForEach(FlowBreakDuration.allCases, id: \.self) { duration in
+                        Text(duration.title).tag(duration)
+                    }
+                }
+                .disabled(!configStore.config.flow.breaksEnabled)
+            }
+            Section("Notifications") {
+                switch flow.notificationStatus {
+                case .allowed:
+                    Label("Notifications are on.", systemImage: "checkmark.circle")
+                        .foregroundStyle(.secondary)
+                case .denied:
+                    warning("Notifications are off. Momentum can't tell you when a session or break ends.")
+                    Button("Open Notification Settings") {
+                        openSystemSettings("com.apple.Notifications-Settings.extension?id=\(Bundle.main.bundleIdentifier ?? "")")
+                    }
+                case .notDetermined:
+                    Text("Momentum asks to send notifications the first time you start Flow.")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .task { await flow.refreshNotificationStatus() }
+        }
+    }
+
     private var keepAwakeSettings: some View {
         Group {
             Section {
@@ -283,9 +332,12 @@ struct SettingsView: View {
     private var advancedSettings: some View {
         Group {
             Section {
-                Label(manager.isTrusted ? "Tiling permissions granted" : "Tiling permissions required",
-                      systemImage: manager.isTrusted ? "checkmark.circle" : "exclamationmark.triangle")
-                    .foregroundStyle(manager.isTrusted ? Color.secondary : Color.orange)
+                if manager.isTrusted {
+                    Label("Tiling permissions granted", systemImage: "checkmark.circle")
+                        .foregroundStyle(.secondary)
+                } else {
+                    WarningLabel("Tiling permissions required")
+                }
                 Text("Allow Momentum under System Settings › Privacy & Security › Device Control and Data Access. Keep Awake works without these permissions.")
                     .foregroundStyle(.secondary)
                 Button("Open Privacy & Security Settings") {
@@ -314,9 +366,7 @@ struct SettingsView: View {
     }
 
     private func warning(_ message: String) -> some View {
-        Label(message, systemImage: "exclamationmark.triangle")
-            .foregroundStyle(.orange)
-            .fixedSize(horizontal: false, vertical: true)
+        WarningLabel(message)
             .textSelection(.enabled)
     }
 
@@ -333,6 +383,18 @@ struct SettingsView: View {
                 preferences[keyPath: keyPath] = value
                 // ConfigStore publishes the error and retains old preferences on failure.
                 do { try configStore.updateKeepAwake(preferences) } catch {}
+            }
+        )
+    }
+
+    private func flowPreference<Value>(_ keyPath: WritableKeyPath<FlowPreferences, Value>) -> Binding<Value> {
+        Binding(
+            get: { configStore.config.flow[keyPath: keyPath] },
+            set: { value in
+                var preferences = configStore.config.flow
+                preferences[keyPath: keyPath] = value
+                // ConfigStore publishes the error and retains old preferences on failure.
+                do { try configStore.updateFlow(preferences) } catch {}
             }
         )
     }
@@ -392,7 +454,7 @@ private struct AppIcon: View {
     var body: some View {
         Image(nsImage: url.map { NSWorkspace.shared.icon(forFile: $0.path) } ?? NSWorkspace.shared.icon(for: .application))
             .resizable()
-            .frame(width: 20, height: 20)
+            .frame(width: Layout.rowIcon, height: Layout.rowIcon)
     }
 }
 
@@ -436,7 +498,7 @@ private struct AppPickerSheet: View {
             }
             .padding()
         }
-        .frame(width: 420, height: 520)
+        .frame(width: Layout.appPickerSize.width, height: Layout.appPickerSize.height)
         .task {
             apps = await Task.detached { InstalledApp.scan() }.value
         }
@@ -467,7 +529,7 @@ struct HotKeyRecorder: View {
         Button(isRecording ? "Press keys…" : (combo?.displayString ?? "None")) {
             isRecording ? stopRecording() : startRecording()
         }
-        .frame(minWidth: 100)
+        .frame(minWidth: Layout.shortcutMinWidth)
         .onDisappear(perform: stopRecording)
     }
 

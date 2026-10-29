@@ -44,12 +44,22 @@ import Observation
         onChange = nil
     }
 
+    func updateKeepAwake(_ preferences: KeepAwakePreferences, committing: () throws -> Void = {}) throws {
+        var candidate = config
+        candidate.keepAwake = preferences
+        try update(to: candidate, feature: "Keep Awake", committing: committing)
+    }
+
+    func updateFlow(_ preferences: FlowPreferences) throws {
+        var candidate = config
+        candidate.flow = preferences
+        try update(to: candidate, feature: "Flow")
+    }
+
     /// Save before native completion, but publish only after both succeed. A failed
     /// completion restores the previous file without exposing the candidate to observers.
-    func updateKeepAwake(_ preferences: KeepAwakePreferences, committing: () throws -> Void = {}) throws {
+    private func update(to candidate: Config, feature: String, committing: () throws -> Void = {}) throws {
         let previous = config
-        var candidate = previous
-        candidate.keepAwake = preferences
         let changed = candidate != previous
         do {
             if changed { try write(candidate) }
@@ -70,7 +80,7 @@ import Observation
             config = candidate
             isReloading = false
         } catch {
-            lastError = "Couldn't update Keep Awake in \(location.lastPathComponent): \(error.localizedDescription)"
+            lastError = "Couldn't update \(feature) in \(location.lastPathComponent): \(error.localizedDescription)"
             throw error
         }
     }

@@ -293,7 +293,7 @@ import Observation
             if floating.remove(window.id) == nil { floating.insert(window.id) }
             refresh()
         case .retile: refresh()
-        case .toggleKeepAwake: break
+        case .toggleKeepAwake, .toggleFlow, .endFlow: break
         case .sendToPreviousDisplay: sendToDisplay(.previous)
         case .sendToNextDisplay: sendToDisplay(.next)
         }

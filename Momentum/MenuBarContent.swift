@@ -34,21 +34,42 @@ struct KeepAwakePresentation {
     }
 }
 
-struct KeepAwakeMenuLabel: View {
-    let service: KeepAwakeService
+struct MomentumMenuLabel: View {
+    let keepAwake: KeepAwakeService
+    let flow: FlowService
+    let configStore: ConfigStore
 
     var body: some View {
-        let presentation = KeepAwakePresentation(service)
-        HStack(spacing: 4) {
-            Image(presentation.iconName)
-            if let countdown = presentation.countdown {
+        let awake = KeepAwakePresentation(keepAwake)
+        let flowState = FlowPresentation(flow, preferences: configStore.config.flow)
+        let status = [flowState.spokenStatus, "Keep Awake: \(awake.status)"].compactMap { $0 }.joined(separator: " · ")
+        // A menu-bar item passes on only its name, so the state goes in the name for VoiceOver.
+        let name = ["Momentum", flowState.spokenStatus, awake.isActive ? "Keep Awake on" : nil].compactMap { $0 }.joined(separator: ", ")
+        HStack(spacing: Space.xs) {
+            icon(awake.iconName, symbol: flowState.menuSymbol)
+            // Flow's countdown wins the text; the Keep Awake icon still shows (FL-12).
+            if let countdown = flowState.countdown ?? awake.countdown {
                 Text(countdown).monospacedDigit()
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Momentum Keep Awake")
-        .accessibilityValue(presentation.status)
-        .help(presentation.status)
+        .accessibilityLabel(name)
+        .help(status)
+    }
+
+    /// A menu-bar item draws only one image, so Flow's state symbol is drawn into the icon as one template.
+    private func icon(_ name: String, symbol: String?) -> Image {
+        guard let symbol else { return Image(name) }
+        let renderer = ImageRenderer(content: HStack(spacing: Space.xs) {
+            Image(name)
+            Image(systemName: symbol)
+                .font(.body.weight(.semibold))
+        }
+        .foregroundStyle(.black))
+        renderer.scale = NSScreen.main?.backingScaleFactor ?? 2
+        guard let image = renderer.nsImage else { return Image(name) }
+        image.isTemplate = true
+        return Image(nsImage: image)
     }
 }
 
@@ -56,19 +77,21 @@ struct MenuBarContent: View {
     @Bindable var manager: TilingManager
     let configStore: ConfigStore
     let keepAwake: KeepAwakeService
+    let flow: FlowService
     let updaterController: SPUStandardUpdaterController?
     @Environment(\.openSettings) private var openSettings
     @State private var confirmsDockRestart = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: Space.md) {
             header
+            FlowPanel(flow: flow, configStore: configStore)
             keepAwakeControls
             tilingControls
             footer
         }
-        .padding(16)
-        .frame(width: 340)
+        .padding(Space.lg)
+        .frame(width: Layout.popoverWidth)
         .onDisappear { confirmsDockRestart = false }
         .onChange(of: manager.canRecoverDesktopSwitching) { _, canRecover in
             if !canRecover { confirmsDockRestart = false }
@@ -77,7 +100,7 @@ struct MenuBarContent: View {
 
     private var header: some View {
         HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: Space.xs) {
                 Text("Momentum").font(.headline)
                 AppVersionLabel()
             }
@@ -97,11 +120,11 @@ struct MenuBarContent: View {
 
     private var keepAwakeControls: some View {
         let presentation = KeepAwakePresentation(keepAwake)
-        return panel {
+        return Panel {
             Label("Keep Awake", systemImage: "cup.and.saucer")
                 .font(.headline)
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: Space.xs) {
                 Text(presentation.sessionTitle)
                     .font(presentation.isActive ? .title3.weight(.semibold) : .subheadline)
                     .monospacedDigit()
@@ -109,6 +132,11 @@ struct MenuBarContent: View {
                     .accessibilityValue(presentation.status)
                 if let mode = presentation.mode {
                     Text(mode == .system ? "System only" : "System and display")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if flow.holdsKeepAwake {
+                    Text("Ends with your Flow session.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -142,7 +170,7 @@ struct MenuBarContent: View {
             }
 
             if presentation.showsExtensions {
-                HStack(spacing: 6) {
+                HStack(spacing: Space.sm) {
                     ForEach([15, 30, 60], id: \.self) { minutes in
                         Button(minutes == 60 ? "+1 hour" : "+\(minutes) min") {
                             keepAwake.extend(by: Double(minutes * 60))
@@ -175,7 +203,7 @@ struct MenuBarContent: View {
     }
 
     private var tilingControls: some View {
-        panel {
+        Panel {
             Label("Window Tiling", systemImage: "rectangle.split.2x2")
                 .font(.headline)
             Toggle("Automatic tiling", isOn: $manager.isEnabled)
@@ -238,7 +266,7 @@ struct MenuBarContent: View {
     // Keep confirmation inside the MenuBarExtra window. A modal alert can cause the
     // transient popover to close before its Cancel / Restart buttons receive the click.
     private var dockRestartConfirmation: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Space.sm) {
             Text("Restart the Dock?").font(.headline)
             Text("Restarting the Dock may restore minimized windows and disrupt your desktop. After it restarts, try switching desktops again.")
                 .font(.caption)
@@ -256,9 +284,9 @@ struct MenuBarContent: View {
     }
 
     private var footer: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: Space.sm) {
             Divider()
-            HStack(spacing: 8) {
+            HStack(spacing: Space.sm) {
                 Button {
                     NSApp.activate()
                     updaterController?.checkForUpdates(nil)
@@ -280,17 +308,8 @@ struct MenuBarContent: View {
         .font(.body)
     }
 
-    private func panel<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 10, content: content)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(14)
-            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
-    }
-
     private func errorMessage(_ message: String) -> some View {
-        Label(message, systemImage: "exclamationmark.triangle")
+        WarningLabel(message)
             .font(.caption)
-            .foregroundStyle(.red)
-            .fixedSize(horizontal: false, vertical: true)
     }
 }
