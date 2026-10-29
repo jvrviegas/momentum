@@ -2,6 +2,26 @@
 
 Notable changes to Momentum are documented here. Versions follow Semantic Versioning; `0.x` releases are early-stage and may change before stabilization.
 
+## [0.6.1] - 2026-10-29
+
+Early-stage prerelease with a development-signed app ZIP for local testing. It is not Developer ID-signed or notarized; automatic-update delivery is not validated.
+
+### Fixed
+
+- Momentum no longer freezes while another app is busy or slow to launch. The menu bar, shortcuts, and tiling could stop responding for a second or more at a time.
+- Window animations stutter much less, especially with several windows or apps that are slow to resize. Each app's windows now update independently, and a slow app skips frames instead of holding up the others.
+- When an app briefly stops responding, its windows keep their places in the layout instead of the other windows filling their space.
+
+### Changed
+
+- When an app refuses to move a window sent to another display, the error now says macOS didn't confirm the placement, rather than that the app refused.
+
+### Compatibility
+
+- Validation includes 205 automated tests and Release-build traces with a main-thread responsiveness check across animation, shortcut, and unresponsive-app scenarios. A locally installed build was checked with real move and focus shortcuts.
+- Existing native Desktop API, SIP, and multi-display validation limitations remain unchanged.
+- The downloadable ZIP is a development build for testing, not a notarized installer or a signed Sparkle update.
+
 ## [0.6.0] - 2026-10-29
 
 Early-stage prerelease with a development-signed app ZIP for local testing. It is not Developer ID-signed or notarized; automatic-update delivery is not validated.
