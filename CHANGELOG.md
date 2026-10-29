@@ -2,6 +2,20 @@
 
 Notable changes to Momentum are documented here. Versions follow Semantic Versioning; `0.x` releases are early-stage and may change before stabilization.
 
+## [0.6.4] - 2026-10-29
+
+Early-stage prerelease with a development-signed app ZIP for local testing. It is not Developer ID-signed or notarized; automatic-update delivery is not validated.
+
+### Changed
+
+- An app that stops responding no longer delays tiling for every other app. Momentum waits at most 100 ms for an app's windows, down from a second, and tiles any new windows of a busy app once it responds.
+
+### Compatibility
+
+- Validation includes 205 automated tests and Release-build traces with apps frozen at launch and while tiled.
+- Existing native Desktop API, SIP, and multi-display validation limitations remain unchanged.
+- The downloadable ZIP is a development build for testing, not a notarized installer or a signed Sparkle update.
+
 ## [0.6.3] - 2026-10-29
 
 Early-stage prerelease with a development-signed app ZIP for local testing. It is not Developer ID-signed or notarized; automatic-update delivery is not validated.
