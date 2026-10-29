@@ -4,7 +4,7 @@
 
 | | |
 |---|---|
-| **Status** | Approved and implemented on `feat/flow`; automated tests and state snapshots pass; manual validation (real notifications, sleep/wake, VoiceOver, keyboard-only) pending |
+| **Status** | Approved and implemented on `feat/flow`; agent checks passed (see `docs/qa/flow-validation.md`); owner checks pending: real notifications, sleep/wake, VoiceOver, keyboard-only |
 | **Owner** | João |
 | **Tech reviewer** | Pending implementation plan |
 | **Client sign-off / Linear project** | N/A — personal Momentum project; repository-local spec |
