@@ -28,7 +28,7 @@ This worktree tiles normal windows on each logical display's visible Desktop ind
 - **MD-01.** When multiple normal Desktop displays are mapped, Momentum maintains a separate layout for every display/Desktop pair, including two displays sharing the same Space ID.
 - **MD-02.** When one layout's windows change, other layouts retain their tree order unless their own window membership or usable bounds change.
 - **MD-03.** When separate Spaces are enabled, layouts use each display's active Desktop. With shared Spaces, a consistent shared snapshot is normalized onto every display; missing or conflicting mapping is left unmanaged rather than treated as the primary Desktop.
-- **MD-04.** When layouts apply, each uses its own usable bounds with common point-based gap/padding settings, animation policy and Reduce Motion override. Each animated display owns its own native display link; stale Space/topology ticks are cancelled. Programmatic layout writes are deferred while the left mouse button is held.
+- **MD-04.** When layouts apply, each uses its own usable bounds with common point-based gap/padding settings, animation policy and Reduce Motion override. Each animated display owns its own native display link. A tick on a display that has switched Desktops or changed bounds is cancelled before it writes. A window that moves to another Space mid-animation stops receiving frames from the next tick: windows' Spaces are checked off the main thread, one frame behind. Programmatic layout writes are deferred while the left mouse button is held.
 
 ### Focus, swaps and transfers
 

@@ -80,9 +80,13 @@ final class TilingFixture {
 
     var environment: TilingEnvironment {
         .init(inventory: { self.displayInventory },
+              display: { id in self.displayInventory.topology.displays.first { $0.id == id } },
               windows: { self.enumerations += 1; return self.windows.map(\.handle) },
               focusedWindow: { self.windows.first { $0.id == self.focusedID }?.handle },
               space: { id in self.windows.first { $0.id == id }?.space },
+              spaces: { ids in
+                  Dictionary(uniqueKeysWithValues: ids.compactMap { id in self.windows.first { $0.id == id }.map { (id, $0.space) } })
+              },
               existingWindowIDs: { self.windowListings += 1; return Set(self.windows.map(\.id)) },
               serverFrame: { id in self.windows.first { $0.id == id }?.serverFrame },
               moveToSpace: { id, space in
@@ -487,14 +491,20 @@ struct MultiDisplayTilingTests {
         #expect(window.resizeFlags.last?.1 == true)
     }
 
-    @Test func staleSourceAnimationCannotWriteAfterWindowChangesSpace() {
+    @Test func animationStopsTheFrameAfterItsWindowChangesSpace() async {
         let f = TilingFixture(); defer { f.cleanup() }
         f.config.store.config.animationsEnabled = true; f.provideLinks = true
         f.windows = [FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 400, height: 300), space: 10)]
         let manager = f.manager(); manager.retile()
-        let stale = f.ticks[1]; f.windows[0].space = 20
-        _ = stale?()
-        #expect(f.windows[0].writes.isEmpty)
+        f.windows[0].space = 20
+        // Windows' Spaces are checked off the main thread, so the frame that starts the check still writes.
+        f.time = 0.05; _ = f.ticks[1]?()
+        let writes = f.windows[0].writes.count
+        for _ in 0..<10 { await Task.yield() }
+        f.time = 0.1
+        let continuing = f.ticks[1]?()
+        #expect(continuing == false)
+        #expect(f.windows[0].writes.count == writes)
         #expect(f.ticks.isEmpty)
     }
 
