@@ -51,7 +51,7 @@ This worktree tiles normal windows on each logical display's visible Desktop ind
 ### Responsiveness
 
 - **MD-17.** When an app doesn't answer Accessibility, Momentum's main thread doesn't wait on it: each app's window reads, frame writes and focus run on that app's own queue, and registering for its notifications gives up after 40 ms and retries for about 10 seconds.
-- **MD-18.** When an app doesn't answer a window read within 1 second, its windows keep their last known place in the layout instead of being removed and reinserted.
+- **MD-18.** When an app doesn't answer a window read within 100 ms, the layout updates without waiting for it: its windows keep their last known place instead of being removed and reinserted, and windows it reports once it answers are tiled then. An app is read at most once at a time.
 - **MD-19.** When an app applies frame writes slower than an animation runs, its windows skip intermediate frames and still receive the final frame; other windows' animations are unaffected.
 - **MD-20.** When a window shortcut is pressed, it acts on windows read after the key press, in the order the shortcuts were pressed.
 - **MD-21.** When Momentum writes window frames to an app whose enhanced Accessibility mode (`AXEnhancedUserInterface`, turned on by some assistive apps) is on, it turns the mode off for those writes and back on once the app's last write finishes. With the mode on, Chrome and other Chromium apps animate each write themselves, about 250 ms behind.
