@@ -2,6 +2,21 @@
 
 Notable changes to Momentum are documented here. Versions follow Semantic Versioning; `0.x` releases are early-stage and may change before stabilization.
 
+## [0.6.2] - 2026-10-29
+
+Early-stage prerelease with a development-signed app ZIP for local testing. It is not Developer ID-signed or notarized; automatic-update delivery is not validated.
+
+### Fixed
+
+- Chrome and other Chromium-based apps no longer lag behind tiling animations when another app has turned on their enhanced accessibility mode. Momentum turns that mode off while it moves their windows, and back on afterwards.
+
+### Compatibility
+
+- Validation includes 205 automated tests and frame-by-frame measurement of a Chrome window while apps open and close beside it.
+- If Momentum quits while it's moving an app's windows, that app's enhanced accessibility mode stays off until the app that enabled it turns it on again.
+- Existing native Desktop API, SIP, and multi-display validation limitations remain unchanged.
+- The downloadable ZIP is a development build for testing, not a notarized installer or a signed Sparkle update.
+
 ## [0.6.1] - 2026-10-29
 
 Early-stage prerelease with a development-signed app ZIP for local testing. It is not Developer ID-signed or notarized; automatic-update delivery is not validated.
