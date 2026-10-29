@@ -5,9 +5,9 @@ struct Panel<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.md) { content }
+        VStack(alignment: .leading, spacing: Space.sm) { content }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(Space.md)
+            .padding(Space.lg)
             .background(Palette.surface, in: RoundedRectangle(cornerRadius: Radius.md))
     }
 }

@@ -97,7 +97,7 @@ struct SettingsView: View {
                         warning(error)
                     }
                 }
-                .padding(Space.xl)
+                .padding(Space.margin)
 
                 Form {
                     switch page {
@@ -115,6 +115,7 @@ struct SettingsView: View {
             .navigationTitle(page.title)
         }
         .navigationSplitViewStyle(.balanced)
+        .noInitialFocus()
         .frame(minWidth: Layout.settingsMinSize.width, idealWidth: Layout.settingsIdealSize.width,
                minHeight: Layout.settingsMinSize.height, idealHeight: Layout.settingsIdealSize.height)
         .sheet(isPresented: $isPickingApps) {

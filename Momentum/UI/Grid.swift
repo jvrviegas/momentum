@@ -1,15 +1,15 @@
 import SwiftUI
 
-/// The spacing scale. Every padding and spacing sits on a 4 pt grid.
+/// The spacing scale. Every padding and spacing sits on a 4 pt grid (scripts/grid-lint.sh).
 enum Space {
     /// A title and the caption under it.
     static let xs: CGFloat = 4
-    /// Buttons side by side, and short stacks of text.
+    /// Related controls, buttons side by side, and short stacks of text.
     static let sm: CGFloat = 8
-    /// Items in a panel, and panels in the popover.
+    /// Panels in the popover.
     static let md: CGFloat = 12
-    /// The popover's margin.
+    /// The popover's margin, and the padding inside a card.
     static let lg: CGFloat = 16
-    /// The Settings page header.
-    static let xl: CGFloat = 24
+    /// Window and page margins.
+    static let margin: CGFloat = 20
 }
