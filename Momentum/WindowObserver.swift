@@ -98,10 +98,10 @@ final class WindowObserver {
         })
     }
 
-    /// Newly launched apps often reject AX notifications until they finish starting up, so keep trying for a few seconds.
+    /// Newly launched apps often reject AX notifications until they finish starting up, so keep trying for about 10 seconds.
     private func retryObserving(_ app: NSRunningApplication) {
         Task { [weak self] in
-            for _ in 0..<10 {
+            for _ in 0..<20 {
                 try? await Task.sleep(for: .milliseconds(500))
                 guard let self, !app.isTerminated else { return }
                 if self.observe(app.processIdentifier) { break }
@@ -129,6 +129,9 @@ final class WindowObserver {
         }
 
         let app = AXUIElementCreateApplication(pid)
+        // Registration runs on the main thread, where the observer delivers its callbacks, so give up
+        // quickly on an app that's still busy starting; `retryObserving` asks again shortly.
+        AXUIElementSetMessagingTimeout(app, 0.04)
         let refcon = Unmanaged.passUnretained(self).toOpaque()
         for notification in Self.appNotifications {
             // Already-registered notifications return a harmless error; a busy app returns cannotComplete.
