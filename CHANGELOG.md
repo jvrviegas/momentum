@@ -2,6 +2,39 @@
 
 Notable changes to Momentum are documented here. Versions follow Semantic Versioning; `0.x` releases are early-stage and may change before stabilization.
 
+## [0.6.0] - 2026-10-29
+
+Early-stage prerelease with a development-signed app ZIP for local testing. It is not Developer ID-signed or notarized; automatic-update delivery is not validated.
+
+### Added
+
+- Flow, a focus timer in the menu bar. Choose a session of 15 to 90 minutes, then pause, resume, or end it. A skippable break of 5 to 20 minutes follows each completed session.
+- A notification tells you when a Flow session or break ends. Momentum asks for notification permission the first time you start Flow.
+- Flow can keep your Mac awake during sessions. It stops only the Keep Awake session it started, so a session you started yourself stays as it was.
+- The menu bar shows Flow's state and minutes left, and VoiceOver reads them.
+- Settings has a Flow page for session and break durations, breaks, Keep Awake, and notification status.
+- Optional “Start or pause Flow” and “End Flow” keyboard shortcuts.
+- The menu-bar popover and the Settings sidebar show Momentum's version.
+
+### Changed
+
+- A new Liquid Glass app icon adapts to the light, dark, tinted, and clear icon styles.
+- The menu-bar popover is organized into Flow, Keep Awake, and Window Tiling panels, with Settings, Check for Updates, and Quit as labeled buttons.
+- Errors and warnings share one style: an orange warning symbol with readable text.
+- When all three attempts to switch Desktops are ignored, Momentum now restarts the Dock automatically and switches again. This may restore minimized windows. If the restart fails, the manual “Restart Dock…” recovery remains.
+
+### Fixed
+
+- The “Restart Dock…” confirmation stays inside the popover, so the popover no longer closes before you can answer.
+- Tiling responds to window changes immediately instead of after a short delay, without interrupting running animations.
+- Settings opens without a focused text field or selected text, and page descriptions line up with the settings below them.
+
+### Compatibility
+
+- Validation includes 203 automated tests. Flow also passed agent-verified UI and accessibility checks, plus owner-confirmed notification, sleep/wake, VoiceOver, and keyboard checks.
+- Existing native Desktop API, SIP, and multi-display validation limitations remain unchanged.
+- The downloadable ZIP is a development build for testing, not a notarized installer or a signed Sparkle update.
+
 ## [0.5.0] - 2026-10-12
 
 Early-stage prerelease with a development-signed app ZIP for local testing. It is not Developer ID-signed or notarized; automatic-update delivery is not validated.
