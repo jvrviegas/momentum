@@ -2,7 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 enum SettingsPage: String, CaseIterable, Identifiable {
-    case layout, floatingApps, shortcuts, keepAwake, advanced
+    case layout, floatingApps, shortcuts, flow, keepAwake, advanced
 
     var id: String { rawValue }
     var title: String {
@@ -10,6 +10,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .layout: "Layout"
         case .floatingApps: "Floating Apps"
         case .shortcuts: "Keyboard Shortcuts"
+        case .flow: "Flow"
         case .keepAwake: "Keep Awake"
         case .advanced: "Advanced"
         }
@@ -19,6 +20,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .layout: "rectangle.split.2x2"
         case .floatingApps: "macwindow.on.rectangle"
         case .shortcuts: "keyboard"
+        case .flow: "timer"
         case .keepAwake: "cup.and.saucer"
         case .advanced: "gearshape.2"
         }
@@ -28,6 +30,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
         case .layout: "Adjust window spacing and motion."
         case .floatingApps: "Choose apps that should stay outside automatic tiling."
         case .shortcuts: "Customize how you navigate and arrange your workspace."
+        case .flow: "Set how long Flow sessions and breaks last."
         case .keepAwake: "Choose preferences for your next Keep Awake session."
         case .advanced: "Manage permissions and the configuration file."
         }
@@ -49,7 +52,7 @@ enum SettingsShortcutGroup: String, CaseIterable, Identifiable {
             case .move: self == .move
             case .sendToDesktop, .switchToDesktop: self == .desktops
             case .sendToPreviousDisplay, .sendToNextDisplay: self == .displays
-            case .toggleFloat, .retile, .toggleKeepAwake: self == .other
+            case .toggleFloat, .retile, .toggleKeepAwake, .toggleFlow, .endFlow: self == .other
             }
         }
     }
@@ -59,6 +62,7 @@ struct SettingsView: View {
     @Bindable var configStore: ConfigStore
     let manager: TilingManager
     let controller: AppController
+    let flow: FlowService
 
     @AppStorage("settings.selectedPage") private var selectedPage = SettingsPage.layout.rawValue
     @State private var newBundleID = ""
@@ -104,6 +108,7 @@ struct SettingsView: View {
                     case .layout: layoutSettings
                     case .floatingApps: floatingSettings
                     case .shortcuts: shortcutSettings
+                    case .flow: flowSettings
                     case .keepAwake: keepAwakeSettings
                     case .advanced: advancedSettings
                     }
@@ -255,6 +260,48 @@ struct SettingsView: View {
         }
     }
 
+    private var flowSettings: some View {
+        Group {
+            Section {
+                Picker("Session duration", selection: flowPreference(\.duration)) {
+                    ForEach(FlowDuration.allCases, id: \.self) { duration in
+                        Text(duration.title).tag(duration)
+                    }
+                }
+                Toggle("Keep Mac awake during sessions", isOn: flowPreference(\.keepAwake))
+            } header: {
+                Text("Sessions")
+            } footer: {
+                Text("Uses your Keep Awake mode. If Keep Awake is already on, Flow leaves it as it is.")
+            }
+            Section("Breaks") {
+                Toggle("Take a break after each session", isOn: flowPreference(\.breaksEnabled))
+                Picker("Break duration", selection: flowPreference(\.breakDuration)) {
+                    ForEach(FlowBreakDuration.allCases, id: \.self) { duration in
+                        Text(duration.title).tag(duration)
+                    }
+                }
+                .disabled(!configStore.config.flow.breaksEnabled)
+            }
+            Section("Notifications") {
+                switch flow.notificationStatus {
+                case .allowed:
+                    Label("Notifications are on.", systemImage: "checkmark.circle")
+                        .foregroundStyle(.secondary)
+                case .denied:
+                    warning("Notifications are off. Momentum can't tell you when a session or break ends.")
+                    Button("Open Notification Settings") {
+                        openSystemSettings("com.apple.Notifications-Settings.extension?id=\(Bundle.main.bundleIdentifier ?? "")")
+                    }
+                case .notDetermined:
+                    Text("Momentum asks to send notifications the first time you start Flow.")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .task { await flow.refreshNotificationStatus() }
+        }
+    }
+
     private var keepAwakeSettings: some View {
         Group {
             Section {
@@ -336,6 +383,18 @@ struct SettingsView: View {
                 preferences[keyPath: keyPath] = value
                 // ConfigStore publishes the error and retains old preferences on failure.
                 do { try configStore.updateKeepAwake(preferences) } catch {}
+            }
+        )
+    }
+
+    private func flowPreference<Value>(_ keyPath: WritableKeyPath<FlowPreferences, Value>) -> Binding<Value> {
+        Binding(
+            get: { configStore.config.flow[keyPath: keyPath] },
+            set: { value in
+                var preferences = configStore.config.flow
+                preferences[keyPath: keyPath] = value
+                // ConfigStore publishes the error and retains old preferences on failure.
+                do { try configStore.updateFlow(preferences) } catch {}
             }
         )
     }

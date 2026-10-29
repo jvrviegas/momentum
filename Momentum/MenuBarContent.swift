@@ -34,21 +34,41 @@ struct KeepAwakePresentation {
     }
 }
 
-struct KeepAwakeMenuLabel: View {
-    let service: KeepAwakeService
+struct MomentumMenuLabel: View {
+    let keepAwake: KeepAwakeService
+    let flow: FlowService
+    let configStore: ConfigStore
 
     var body: some View {
-        let presentation = KeepAwakePresentation(service)
+        let awake = KeepAwakePresentation(keepAwake)
+        let flowState = FlowPresentation(flow, preferences: configStore.config.flow)
+        let status = [flowState.spokenStatus, "Keep Awake: \(awake.status)"].compactMap { $0 }.joined(separator: " · ")
         HStack(spacing: Space.xs) {
-            Image(presentation.iconName)
-            if let countdown = presentation.countdown {
+            icon(awake.iconName, symbol: flowState.menuSymbol)
+            // Flow's countdown wins the text; the Keep Awake icon still shows (FL-12).
+            if let countdown = flowState.countdown ?? awake.countdown {
                 Text(countdown).monospacedDigit()
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Momentum Keep Awake")
-        .accessibilityValue(presentation.status)
-        .help(presentation.status)
+        .accessibilityLabel("Momentum")
+        .accessibilityValue(status)
+        .help(status)
+    }
+
+    /// A menu-bar item draws only one image, so Flow's state symbol is drawn into the icon as one template.
+    private func icon(_ name: String, symbol: String?) -> Image {
+        guard let symbol else { return Image(name) }
+        let renderer = ImageRenderer(content: HStack(spacing: Space.xs) {
+            Image(name)
+            Image(systemName: symbol)
+                .font(.body.weight(.semibold))
+        }
+        .foregroundStyle(.black))
+        renderer.scale = NSScreen.main?.backingScaleFactor ?? 2
+        guard let image = renderer.nsImage else { return Image(name) }
+        image.isTemplate = true
+        return Image(nsImage: image)
     }
 }
 
@@ -56,6 +76,7 @@ struct MenuBarContent: View {
     @Bindable var manager: TilingManager
     let configStore: ConfigStore
     let keepAwake: KeepAwakeService
+    let flow: FlowService
     let updaterController: SPUStandardUpdaterController?
     @Environment(\.openSettings) private var openSettings
     @State private var confirmsDockRestart = false
@@ -63,6 +84,7 @@ struct MenuBarContent: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Space.md) {
             header
+            FlowPanel(flow: flow, configStore: configStore)
             keepAwakeControls
             tilingControls
             footer
@@ -109,6 +131,11 @@ struct MenuBarContent: View {
                     .accessibilityValue(presentation.status)
                 if let mode = presentation.mode {
                     Text(mode == .system ? "System only" : "System and display")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if flow.holdsKeepAwake {
+                    Text("Ends with your Flow session.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

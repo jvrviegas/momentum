@@ -12,6 +12,7 @@ protocol HotKeyRegistration: AnyObject {
     private(set) var failedHotKeys: Set<Action> = []
     @ObservationIgnored private let store: ConfigStore
     @ObservationIgnored private let keepAwake: KeepAwakeService
+    @ObservationIgnored private let flow: FlowService?
     @ObservationIgnored private let performTiling: (Action) -> Void
     @ObservationIgnored private let refreshTiling: () -> Void
     @ObservationIgnored private var hotKeys: (any HotKeyRegistration)?
@@ -19,11 +20,12 @@ protocol HotKeyRegistration: AnyObject {
     @ObservationIgnored private var started = false
     @ObservationIgnored private var isShutdown = false
 
-    init(store: ConfigStore, keepAwake: KeepAwakeService,
+    init(store: ConfigStore, keepAwake: KeepAwakeService, flow: FlowService? = nil,
          hotKeys: (any HotKeyRegistration)? = nil,
          performTiling: @escaping (Action) -> Void, refreshTiling: @escaping () -> Void) {
         self.store = store
         self.keepAwake = keepAwake
+        self.flow = flow
         self.hotKeys = hotKeys
         self.performTiling = performTiling
         self.refreshTiling = refreshTiling
@@ -43,15 +45,23 @@ protocol HotKeyRegistration: AnyObject {
         if listening {
             let workspace = NSWorkspace.shared.notificationCenter
             listen(workspace, NSWorkspace.willSleepNotification) { [weak self] in self?.keepAwake.willSleep() }
-            listen(workspace, NSWorkspace.didWakeNotification) { [weak self] in self?.keepAwake.didWake() }
+            listen(workspace, NSWorkspace.didWakeNotification) { [weak self] in
+                // Flow first: a session that ended during sleep releases its Keep Awake instead of resuming it.
+                self?.flow?.didWake()
+                self?.keepAwake.didWake()
+            }
             listen(.default, NSApplication.willTerminateNotification) { [weak self] in self?.shutdown() }
         }
     }
 
     func perform(_ action: Action) {
         guard !isShutdown else { return }
-        if action == .toggleKeepAwake { keepAwake.toggle() }
-        else { performTiling(action) }
+        switch action {
+        case .toggleKeepAwake: keepAwake.toggle()
+        case .toggleFlow: flow?.toggle()
+        case .endFlow: flow?.end()
+        default: performTiling(action)
+        }
     }
 
     func shutdown() {
@@ -61,6 +71,7 @@ protocol HotKeyRegistration: AnyObject {
         listeners.removeAll()
         hotKeys?.shutdown()
         hotKeys = nil
+        flow?.shutdown()
         keepAwake.shutdown()
         store.shutdown()
     }

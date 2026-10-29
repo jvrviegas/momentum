@@ -17,8 +17,9 @@ struct ConfigTests {
         let oldActions = Direction.allCases.map(Action.focus) + Direction.allCases.map(Action.move)
             + (1...9).map(Action.sendToDesktop) + (1...9).map(Action.switchToDesktop)
             + [.toggleFloat, .retile, .toggleKeepAwake]
-        #expect(Array(Action.allCases.dropLast(2)) == oldActions)
-        #expect(Array(Action.allCases.suffix(2)) == [.sendToPreviousDisplay, .sendToNextDisplay])
+        // Flow's actions come after the display actions.
+        #expect(Array(Action.allCases.dropLast(4)) == oldActions)
+        #expect(Array(Action.allCases.suffix(4).prefix(2)) == [.sendToPreviousDisplay, .sendToNextDisplay])
         #expect(Action(rawValue: "send-to-previous-display") == .sendToPreviousDisplay)
         #expect(Action(rawValue: "send-to-next-display") == .sendToNextDisplay)
         #expect(Action.sendToPreviousDisplay.title == "Send window to previous display")

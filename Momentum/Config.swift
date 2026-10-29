@@ -12,6 +12,8 @@ enum Action: Hashable, CaseIterable, RawRepresentable, Codable, CodingKeyReprese
     case toggleKeepAwake
     case sendToPreviousDisplay
     case sendToNextDisplay
+    case toggleFlow
+    case endFlow
 
     static var allCases: [Action] {
         Direction.allCases.map(Action.focus)
@@ -20,6 +22,7 @@ enum Action: Hashable, CaseIterable, RawRepresentable, Codable, CodingKeyReprese
             + (1...9).map(Action.switchToDesktop)
             + [.toggleFloat, .retile, .toggleKeepAwake]
             + [.sendToPreviousDisplay, .sendToNextDisplay]
+            + [.toggleFlow, .endFlow]
     }
 
     init?(rawValue: String) {
@@ -39,6 +42,8 @@ enum Action: Hashable, CaseIterable, RawRepresentable, Codable, CodingKeyReprese
         case .toggleKeepAwake: "toggle-keep-awake"
         case .sendToPreviousDisplay: "send-to-previous-display"
         case .sendToNextDisplay: "send-to-next-display"
+        case .toggleFlow: "toggle-flow"
+        case .endFlow: "end-flow"
         }
     }
 
@@ -53,6 +58,8 @@ enum Action: Hashable, CaseIterable, RawRepresentable, Codable, CodingKeyReprese
         case .toggleKeepAwake: "Toggle Keep Awake"
         case .sendToPreviousDisplay: "Send window to previous display"
         case .sendToNextDisplay: "Send window to next display"
+        case .toggleFlow: "Start or pause Flow"
+        case .endFlow: "End Flow"
         }
     }
 }
@@ -233,9 +240,73 @@ struct KeepAwakePreferences: Codable, Equatable {
     }
 }
 
+enum FlowDuration: String, Codable, CaseIterable {
+    case fifteenMinutes = "15m", twentyFiveMinutes = "25m", thirtyMinutes = "30m", fortyFiveMinutes = "45m"
+    case fiftyMinutes = "50m", sixtyMinutes = "60m", ninetyMinutes = "90m"
+
+    var minutes: Int {
+        switch self {
+        case .fifteenMinutes: 15
+        case .twentyFiveMinutes: 25
+        case .thirtyMinutes: 30
+        case .fortyFiveMinutes: 45
+        case .fiftyMinutes: 50
+        case .sixtyMinutes: 60
+        case .ninetyMinutes: 90
+        }
+    }
+
+    var seconds: Double { Double(minutes * 60) }
+    var title: String { "\(minutes) minutes" }
+}
+
+enum FlowBreakDuration: String, Codable, CaseIterable {
+    case fiveMinutes = "5m", tenMinutes = "10m", fifteenMinutes = "15m", twentyMinutes = "20m"
+
+    var minutes: Int {
+        switch self {
+        case .fiveMinutes: 5
+        case .tenMinutes: 10
+        case .fifteenMinutes: 15
+        case .twentyMinutes: 20
+        }
+    }
+
+    var seconds: Double { Double(minutes * 60) }
+    var title: String { "\(minutes) minutes" }
+}
+
+struct FlowPreferences: Codable, Equatable {
+    var duration: FlowDuration = .twentyFiveMinutes
+    var breakDuration: FlowBreakDuration = .fiveMinutes
+    var breaksEnabled = true
+    /// Start Keep Awake for each session when it's off (FL-14).
+    var keepAwake = false
+
+    init(duration: FlowDuration = .twentyFiveMinutes, breakDuration: FlowBreakDuration = .fiveMinutes,
+         breaksEnabled: Bool = true, keepAwake: Bool = false) {
+        self.duration = duration
+        self.breakDuration = breakDuration
+        self.breaksEnabled = breaksEnabled
+        self.keepAwake = keepAwake
+    }
+
+    /// Missing keys default; present keys must be valid, like Keep Awake's preferences.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = FlowPreferences()
+        duration = try container.contains(.duration) ? container.decode(FlowDuration.self, forKey: .duration) : defaults.duration
+        breakDuration = try container.contains(.breakDuration)
+            ? container.decode(FlowBreakDuration.self, forKey: .breakDuration) : defaults.breakDuration
+        breaksEnabled = try container.contains(.breaksEnabled) ? container.decode(Bool.self, forKey: .breaksEnabled) : defaults.breaksEnabled
+        keepAwake = try container.contains(.keepAwake) ? container.decode(Bool.self, forKey: .keepAwake) : defaults.keepAwake
+    }
+}
+
 /// User configuration, persisted as JSON. Missing keys fall back to defaults so the file can be partially edited.
 struct Config: Codable, Equatable {
     var keepAwake = KeepAwakePreferences()
+    var flow = FlowPreferences()
     var gap: Double = 8
     var outerPadding: Double = 8
     var animationsEnabled = true
@@ -288,6 +359,7 @@ struct Config: Codable, Equatable {
         ignoreReduceMotion = try container.decodeIfPresent(Bool.self, forKey: .ignoreReduceMotion) ?? defaults.ignoreReduceMotion
         keepAwake = try container.contains(.keepAwake)
             ? container.decode(KeepAwakePreferences.self, forKey: .keepAwake) : defaults.keepAwake
+        flow = try container.contains(.flow) ? container.decode(FlowPreferences.self, forKey: .flow) : defaults.flow
         floatingBundleIDs = try container.decodeIfPresent([String].self, forKey: .floatingBundleIDs) ?? defaults.floatingBundleIDs
         let decodedBindings = try container.decodeIfPresent([Action: KeyCombo?].self, forKey: .bindings) ?? [:]
         // Actions missing from the file (e.g. added in a newer version) get their default hotkey.

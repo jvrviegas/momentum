@@ -33,6 +33,9 @@ struct TaskKeepAwakeScheduler: KeepAwakeScheduler {
     private(set) var error: String?
     private(set) var retryMode: KeepAwakeMode?
     private(set) var currentTime: Double = 0
+    /// Changes whenever a session starts, stops, or changes mode; sleep and wake don't count.
+    /// Flow compares it to tell whether people changed the session Flow started.
+    private(set) var revision = 0
 
     @ObservationIgnored private let store: ConfigStore
     @ObservationIgnored private let assertions: PowerAssertions
@@ -63,7 +66,8 @@ struct TaskKeepAwakeScheduler: KeepAwakeScheduler {
         Int(ceil(max(0, deadline - now) / 60))
     }
 
-    func start() {
+    /// `duration` overrides the remembered duration for this session only; the saved preference stays.
+    func start(duration: KeepAwakeDuration? = nil) {
         guard !isSavingPreference else { return }
         reevaluate()
         guard !isShutdown, !isActive else { return }
@@ -73,8 +77,9 @@ struct TaskKeepAwakeScheduler: KeepAwakeScheduler {
             try assertions.commit(additions, mode: preferences.mode)
             currentTime = now()
             mode = preferences.mode
-            deadline = preferences.duration.seconds.map { currentTime + $0 }
+            deadline = (duration ?? preferences.duration).seconds.map { currentTime + $0 }
             isSuspended = false
+            revision += 1
             clearError()
             scheduleNext()
         } catch {
@@ -93,6 +98,7 @@ struct TaskKeepAwakeScheduler: KeepAwakeScheduler {
         guard !isSavingPreference else { return }
         cancelTimer()
         assertions.releaseAll()
+        if mode != nil { revision += 1 }
         mode = nil
         deadline = nil
         isSuspended = false
@@ -145,7 +151,10 @@ struct TaskKeepAwakeScheduler: KeepAwakeScheduler {
                 assertions.rollback(additions)
                 throw PowerAssertionError(message: [error.localizedDescription, assertions.cleanupError].compactMap { $0 }.joined(separator: " "))
             }
-            if isActive { mode = newMode }
+            if isActive {
+                mode = newMode
+                revision += 1
+            }
             clearError()
         } catch {
             self.error = error.localizedDescription
