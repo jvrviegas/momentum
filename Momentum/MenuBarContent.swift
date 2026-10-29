@@ -39,7 +39,7 @@ struct KeepAwakeMenuLabel: View {
 
     var body: some View {
         let presentation = KeepAwakePresentation(service)
-        HStack(spacing: 4) {
+        HStack(spacing: Space.xs) {
             Image(presentation.iconName)
             if let countdown = presentation.countdown {
                 Text(countdown).monospacedDigit()
@@ -61,14 +61,14 @@ struct MenuBarContent: View {
     @State private var confirmsDockRestart = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: Space.md) {
             header
             keepAwakeControls
             tilingControls
             footer
         }
-        .padding(16)
-        .frame(width: 340)
+        .padding(Space.lg)
+        .frame(width: Layout.popoverWidth)
         .onDisappear { confirmsDockRestart = false }
         .onChange(of: manager.canRecoverDesktopSwitching) { _, canRecover in
             if !canRecover { confirmsDockRestart = false }
@@ -77,7 +77,7 @@ struct MenuBarContent: View {
 
     private var header: some View {
         HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: Space.xs) {
                 Text("Momentum").font(.headline)
                 AppVersionLabel()
             }
@@ -97,11 +97,11 @@ struct MenuBarContent: View {
 
     private var keepAwakeControls: some View {
         let presentation = KeepAwakePresentation(keepAwake)
-        return panel {
+        return Panel {
             Label("Keep Awake", systemImage: "cup.and.saucer")
                 .font(.headline)
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: Space.xs) {
                 Text(presentation.sessionTitle)
                     .font(presentation.isActive ? .title3.weight(.semibold) : .subheadline)
                     .monospacedDigit()
@@ -142,7 +142,7 @@ struct MenuBarContent: View {
             }
 
             if presentation.showsExtensions {
-                HStack(spacing: 6) {
+                HStack(spacing: Space.sm) {
                     ForEach([15, 30, 60], id: \.self) { minutes in
                         Button(minutes == 60 ? "+1 hour" : "+\(minutes) min") {
                             keepAwake.extend(by: Double(minutes * 60))
@@ -175,7 +175,7 @@ struct MenuBarContent: View {
     }
 
     private var tilingControls: some View {
-        panel {
+        Panel {
             Label("Window Tiling", systemImage: "rectangle.split.2x2")
                 .font(.headline)
             Toggle("Automatic tiling", isOn: $manager.isEnabled)
@@ -238,7 +238,7 @@ struct MenuBarContent: View {
     // Keep confirmation inside the MenuBarExtra window. A modal alert can cause the
     // transient popover to close before its Cancel / Restart buttons receive the click.
     private var dockRestartConfirmation: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Space.sm) {
             Text("Restart the Dock?").font(.headline)
             Text("Restarting the Dock may restore minimized windows and disrupt your desktop. After it restarts, try switching desktops again.")
                 .font(.caption)
@@ -256,9 +256,9 @@ struct MenuBarContent: View {
     }
 
     private var footer: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: Space.sm) {
             Divider()
-            HStack(spacing: 8) {
+            HStack(spacing: Space.sm) {
                 Button {
                     NSApp.activate()
                     updaterController?.checkForUpdates(nil)
@@ -280,17 +280,8 @@ struct MenuBarContent: View {
         .font(.body)
     }
 
-    private func panel<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 10, content: content)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(14)
-            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
-    }
-
     private func errorMessage(_ message: String) -> some View {
-        Label(message, systemImage: "exclamationmark.triangle")
+        WarningLabel(message)
             .font(.caption)
-            .foregroundStyle(.red)
-            .fixedSize(horizontal: false, vertical: true)
     }
 }
