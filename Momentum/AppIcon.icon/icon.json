@@ -1,0 +1,48 @@
+{
+  "fill" : {
+    "linear-gradient" : [
+      "srgb:0.56471,0.44706,0.94902,1.00000",
+      "srgb:0.41569,0.18431,0.77647,1.00000"
+    ],
+    "orientation" : {
+      "start" : {
+        "x" : 0.0,
+        "y" : 0.0
+      },
+      "stop" : {
+        "x" : 1.0,
+        "y" : 1.0
+      }
+    }
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "glass" : true,
+          "image-name" : "columns.svg",
+          "name" : "columns"
+        },
+        {
+          "glass" : true,
+          "image-name" : "tiles.svg",
+          "name" : "tiles",
+          "opacity" : 0.8
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "squares" : [
+      "macOS"
+    ]
+  }
+}

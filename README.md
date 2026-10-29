@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="Momentum/Assets.xcassets/AppIcon.appiconset/icon_128.png" width="80" height="80" alt="Momentum icon">
+  <img src="docs/assets/app-icon.png" width="80" height="80" alt="Momentum icon">
 </p>
 
 <h1 align="center">Momentum</h1>
