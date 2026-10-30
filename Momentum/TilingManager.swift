@@ -9,11 +9,16 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
 @Observable final class TilingManager {
     var isEnabled = true {
         didSet {
-            if !isEnabled { moveTask?.cancel(); pointerReleaseTask?.cancel(); cancelAnimations() }
+            if !isEnabled {
+                moveTask?.cancel(); pointerReleaseTask?.cancel(); cancelAnimations()
+                setAside.removeAll(); noRoomMessage = nil
+            }
             refresh()
         }
     }
     private(set) var isTrusted = false
+    /// Says which windows float because they don't fit (MD-31).
+    private(set) var noRoomMessage: String?
     private(set) var lastDesktopMoveError: String?
     private(set) var lastDesktopSwitchError: String?
     private(set) var isRecoveringDock = false
@@ -40,6 +45,18 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
     @ObservationIgnored private var dragResized = false
     @ObservationIgnored private var dragSource: LayoutKey?
     @ObservationIgnored private var animations: [DisplayID: AnimationState] = [:]
+    /// Sizes apps kept when Momentum asked for less (MD-22). Forgotten on Retile and when the window closes.
+    @ObservationIgnored private var minimumSizes: [WindowID: CGSize] = [:]
+    /// The frame Momentum last asked each window to take. A size check that no longer matches it is out of date,
+    /// and a window still at its origin belongs to that frame's display (`placement`).
+    @ObservationIgnored private var requested: [WindowID: CGRect] = [:]
+    /// Windows each layout set aside because they don't fit. Momentum moves them to the center once.
+    @ObservationIgnored private var setAside: [LayoutKey: Set<WindowID>] = [:]
+    @ObservationIgnored private(set) var sizeCheckTask: Task<Void, Never>?
+
+    /// Apps that size windows in steps (like Terminal's character grid) can end up to this much larger than
+    /// asked without having a minimum size (MD-23). Terminal rounds by about 3 pt at its default font.
+    private static let sizeStep: CGFloat = 8
 
     private struct AnimationState {
         let key: LayoutKey
@@ -79,7 +96,7 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
     }
 
     func configurationDidChange() { refresh() }
-    func retile() { refresh() }
+    func retile() { forgetMinimumSizes(); refresh() }
     func dismissDesktopMoveError() { lastDesktopMoveError = nil }
     func dismissDesktopSwitchError() {
         lastDesktopSwitchError = nil
@@ -112,7 +129,8 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
         }
     }
 
-    private func reconcile() {
+    /// `prioritizing` joins its layout ahead of the other windows, so it's the last one set aside (MD-29).
+    private func reconcile(prioritizing: WindowID? = nil) {
         guard isEnabled, isTrusted, !isSuspended, !isTrackingDrag else { return }
         // A synchronous frame write (as in tests) can deliver another event while an update is in flight.
         // Finish that update before reconciling again; no timed debounce is needed.
@@ -134,6 +152,8 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
             else if existing?.contains(id) == false { memberships[id] = .closed }
         }
         floating = floating.filter { memberships[$0] != .closed }
+        minimumSizes = minimumSizes.filter { memberships[$0.key] != .closed }
+        requested = requested.filter { memberships[$0.key] != .closed }
 
         var visible: [LayoutKey: DisplayLayoutState.VisibleLayout] = [:]
         var ids: [LayoutKey: [WindowID]] = [:]
@@ -144,7 +164,7 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
         windows.removeAll(keepingCapacity: true)
         for window in current {
             guard window.isStandard, windows[window.id] == nil, let frame = window.frame,
-                  let display = inventory.topology.owner(of: frame), display.isEligible,
+                  let display = inventory.topology.owner(of: placement(of: window.id, at: frame)), display.isEligible,
                   let space = display.activeSpace?.id, memberships[window.id] == .space(space) else { continue }
             windows[window.id] = window
             if !isFloating(window) { ids[LayoutKey(displayID: display.id, spaceID: space), default: []].append(window.id) }
@@ -154,8 +174,11 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
             visible[key] = .init(bounds: display.tilingBounds(padding: config.outerPadding), windows: list)
         }
         layoutState.reconcile(visible: visible, connectedDisplays: Set(inventory.topology.displays.map(\.id)),
-                              membership: memberships, focused: environment.focusedWindow()?.id)
+                              membership: memberships, focused: environment.focusedWindow()?.id,
+                              prioritized: prioritizing)
         for key in visible.keys { apply(key) }
+        setAside = setAside.filter { layoutState.trees[$0.key] != nil }
+        updateNoRoomMessage(on: visible.keys)
     }
 
     private func deferRefresh() {
@@ -168,13 +191,16 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
     }
 
     private func apply(_ key: LayoutKey) {
-        guard let tree = layoutState.trees[key], let bounds = bounds(for: key, in: inventory) else { return }
-        let targets = tree.layout(in: bounds, gap: config.gap)
+        guard let bounds = bounds(for: key, in: inventory),
+              let arrangement = arrangement(for: key, bounds: bounds) else { return }
+        let targets = arrangement.frames
         let current = Dictionary(uniqueKeysWithValues: targets.keys.compactMap { id in
             windows[id]?.frame.map { (id, $0) }
         })
         // Programmatic AX writes while the button is held look like user drags to the observer.
         if environment.mousePressed() { refreshAfterPointerRelease(); return }
+        placeAside(arrangement.setAside, in: key, bounds: bounds)
+        for (id, frame) in targets { requested[id] = frame }
         guard config.shouldAnimate(reduceMotion: environment.reduceMotion()) else {
             cancelAnimation(on: key.displayID)
             writeImmediately(targets)
@@ -219,10 +245,104 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
     }
 
     private func writeImmediately(_ targets: [WindowID: CGRect]) {
+        var written: [WindowID: CGRect] = [:]
         for (id, frame) in targets {
             guard let window = windows[id], let current = window.frame, current != frame else { continue }
             _ = window.writeFrame(frame, current, current.size != frame.size, true)
+            written[id] = frame
         }
+        checkSizes(written)
+    }
+
+    private func arrangement(for key: LayoutKey, bounds: CGRect) -> DisplayLayoutState.Arrangement? {
+        layoutState.arrangement(for: key, bounds: bounds, gap: config.gap, minimums: minimumSizes)
+    }
+
+    /// Moves windows that no longer fit to the center of the display (MD-27). After that they float
+    /// wherever people put them.
+    private func placeAside(_ ids: Set<WindowID>, in key: LayoutKey, bounds: CGRect) {
+        let placed = setAside[key] ?? []
+        setAside[key] = ids
+        for id in ids.subtracting(placed) {
+            guard let window = windows[id], let current = window.frame else { continue }
+            let frame = Self.centered(current.size, in: bounds)
+            requested[id] = frame
+            if frame != current { _ = window.writeFrame(frame, current, false, true) }
+        }
+    }
+
+    /// Where Momentum put the window. An app that kept it larger than asked doesn't move it to another display.
+    private func placement(of id: WindowID, at frame: CGRect) -> CGRect {
+        guard let asked = requested[id], asked.width > 0, asked.height > 0,
+              abs(frame.minX - asked.minX) <= 1, abs(frame.minY - asked.minY) <= 1 else { return frame }
+        return asked
+    }
+
+    /// Centered in `bounds`, or at its top or left edge where `size` is larger.
+    static func centered(_ size: CGSize, in bounds: CGRect) -> CGRect {
+        func origin(_ start: CGFloat, _ available: CGFloat, _ length: CGFloat) -> CGFloat {
+            length > available ? start : (start + (available - length) / 2).rounded(.down)
+        }
+        return CGRect(x: origin(bounds.minX, bounds.width, size.width), y: origin(bounds.minY, bounds.height, size.height),
+                      width: size.width, height: size.height)
+    }
+
+    private func isSetAside(_ id: WindowID) -> Bool {
+        setAside.values.contains { $0.contains(id) }
+    }
+
+    /// Learns minimum sizes from the sizes apps kept after Momentum's last write to each window (MD-22).
+    private func checkSizes(_ frames: [WindowID: CGRect]) {
+        var checks: [Task<Void, Never>] = []
+        for (id, frame) in frames {
+            guard let window = windows[id] else { continue }
+            checks.append(Task { [weak self] in
+                let size = await window.readSettledFrame()?.size
+                guard let self, learnMinimumSize(of: id, requested: frame, kept: size) else { return }
+                refresh()
+            })
+        }
+        guard !checks.isEmpty else { return }
+        // Waits for earlier checks too, so awaiting the latest one waits for every check still running.
+        let earlier = sizeCheckTask
+        sizeCheckTask = Task {
+            await earlier?.value
+            for check in checks { await check.value }
+        }
+    }
+
+    private func learnMinimumSize(of id: WindowID, requested frame: CGRect, kept size: CGSize?) -> Bool {
+        // A newer layout or the user's drag makes the answer out of date.
+        guard let size, requested[id] == frame, !environment.mousePressed() else { return false }
+        if abs(size.width - frame.width) > 2 || abs(size.height - frame.height) > 2 {
+            let app = windows[id]?.bundleID ?? "?"
+            tilingSignposter.emitEvent("size", """
+                \(app, privacy: .public) asked \(Int(frame.width))x\(Int(frame.height)) \
+                kept \(Int(size.width))x\(Int(size.height))
+                """)
+        }
+        let known = minimumSizes[id] ?? .zero
+        var minimum = known
+        if size.width > frame.width + Self.sizeStep { minimum.width = max(known.width, size.width.rounded(.up)) }
+        if size.height > frame.height + Self.sizeStep { minimum.height = max(known.height, size.height.rounded(.up)) }
+        guard minimum != known else { return false }
+        minimumSizes[id] = minimum
+        return true
+    }
+
+    /// Retile measures minimum sizes again (MD-24).
+    private func forgetMinimumSizes() {
+        minimumSizes.removeAll()
+    }
+
+    private func updateNoRoomMessage(on keys: some Collection<LayoutKey>) {
+        let ids = keys.flatMap { setAside[$0] ?? [] }
+        let message: String? = switch ids.count {
+        case 0: nil
+        case 1: "\(windows[ids[0]]?.readAppName() ?? "A window") floats until there's room to tile it."
+        default: "\(ids.count) windows float until there's room to tile them."
+        }
+        if message != noRoomMessage { noRoomMessage = message }
     }
 
     private func animateFrame(on display: DisplayID) -> Bool {
@@ -257,7 +377,11 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
             state.frames[id] = succeeded ? frame : nil
         }
         animations[display] = state
-        if !state.model.isActive { cancelAnimation(on: display); return false }
+        if !state.model.isActive {
+            checkSizes(state.targets)
+            cancelAnimation(on: display)
+            return false
+        }
         return true
     }
 
@@ -292,7 +416,7 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
 
     private func key(for window: TilingEnvironment.Window, in snapshot: Spaces.DisplayInventory) -> LayoutKey? {
         guard window.isStandard, let frame = window.frame,
-              let display = snapshot.topology.owner(of: frame), display.isEligible,
+              let display = snapshot.topology.owner(of: placement(of: window.id, at: frame)), display.isEligible,
               let space = display.activeSpace?.id, environment.space(window.id) == space else { return nil }
         return LayoutKey(displayID: display.id, spaceID: space)
     }
@@ -360,9 +484,17 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
         case .move(let direction): swap(direction)
         case .toggleFloat:
             guard let window = environment.focusedWindow(), window.isStandard else { return }
-            if floating.remove(window.id) == nil { floating.insert(window.id) }
+            // Floating by choice or for lack of room, the window joins tiling ahead of the others (MD-29).
+            if floating.remove(window.id) != nil || isSetAside(window.id) {
+                reconcile(prioritizing: window.id)
+                if isSetAside(window.id) { environment.reportError() }
+            } else {
+                floating.insert(window.id)
+                reconcile()
+            }
+        case .retile:
+            forgetMinimumSizes()
             reconcile()
-        case .retile: reconcile()
         case .toggleKeepAwake, .toggleFlow, .endFlow: break
         case .sendToPreviousDisplay: sendToDisplay(.previous)
         case .sendToNextDisplay: sendToDisplay(.next)
@@ -372,17 +504,18 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
     private func focus(_ direction: Direction) {
         reconcile()
         guard let window = environment.focusedWindow(), let key = key(for: window, in: inventory),
-              let bounds = bounds(for: key, in: inventory), let tree = layoutState.trees[key],
-              tree.contains(window.id) else { return }
-        if let local = tree.neighbor(of: window.id, direction: direction, bounds: bounds) {
-            windows[local]?.focus()
+              let bounds = bounds(for: key, in: inventory), let local = arrangement(for: key, bounds: bounds)?.frames,
+              local[window.id] != nil else { return }
+        if let neighbor = BSPTree.neighbor(of: window.id, direction: direction, in: local) {
+            windows[neighbor]?.focus()
             return
         }
         var frames: [WindowID: CGRect] = [:]
         var owners: [WindowID: DisplayID] = [:]
-        for (candidate, tree) in layoutState.trees {
-            guard let bounds = self.bounds(for: candidate, in: inventory) else { continue }
-            for (id, frame) in tree.layout(in: bounds, gap: config.gap) where windows[id] != nil {
+        for candidate in layoutState.trees.keys {
+            guard let bounds = self.bounds(for: candidate, in: inventory),
+                  let arrangement = arrangement(for: candidate, bounds: bounds) else { continue }
+            for (id, frame) in arrangement.frames where windows[id] != nil {
                 frames[id] = frame
                 owners[id] = candidate.displayID
             }
@@ -397,7 +530,8 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
         reconcile()
         guard let window = environment.focusedWindow(), let key = key(for: window, in: inventory),
               let bounds = bounds(for: key, in: inventory) else { return }
-        if layoutState.swap(window.id, direction: direction, in: key, bounds: bounds) { apply(key) }
+        if layoutState.swap(window.id, direction: direction, in: key, bounds: bounds, gap: config.gap,
+                            minimums: minimumSizes) { apply(key) }
     }
 
     private func sendToDesktop(_ number: Int) {
@@ -436,7 +570,7 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
     private func transfer(_ window: TilingEnvironment.Window, to destination: DisplayTopology.Display,
                           in snapshot: Spaces.DisplayInventory, followFocus: Bool = true) {
         guard window.isStandard, let current = window.frame, let space = destination.activeSpace?.id,
-              let source = snapshot.topology.owner(of: current) else { return }
+              let source = snapshot.topology.owner(of: placement(of: window.id, at: current)) else { return }
         let target: CGRect
         if isFloating(window) {
             target = DisplayMover.floatingFrame(current, from: source.usableFrame, to: destination.usableFrame)
@@ -444,14 +578,24 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
             let destinationKey = LayoutKey(displayID: destination.id, spaceID: space)
             let bounds = destination.tilingBounds(padding: config.outerPadding)
             var tree = layoutState.trees[destinationKey] ?? BSPTree()
-            var ids = environment.windows().filter {
-                $0.id != window.id && $0.isStandard && !isFloating($0) && environment.space($0.id) == space
-                    && $0.frame.flatMap { snapshot.topology.owner(of: $0)?.id } == destination.id
+            var ids = environment.windows().filter { other in
+                other.id != window.id && other.isStandard && !isFloating(other) && environment.space(other.id) == space
+                    && other.frame.flatMap { snapshot.topology.owner(of: placement(of: other.id, at: $0))?.id }
+                        == destination.id
             }.map(\.id)
             ids.append(window.id)
             tree.sync(with: ids, focused: layoutState.lastFocused[destinationKey], bounds: bounds)
-            guard let placement = tree.layout(in: bounds, gap: config.gap)[window.id] else { return }
-            target = placement
+            let order = (layoutState.joinOrder[destinationKey] ?? []).filter { $0 != window.id } + [window.id]
+            let setAside = tree.windowsThatDontFit(in: bounds, gap: config.gap, minimums: minimumSizes, order: order)
+            if setAside.contains(window.id) {
+                // It floats at the center until there's room (MD-30).
+                target = Self.centered(current.size, in: bounds)
+            } else {
+                for id in setAside { tree.remove(id) }
+                guard let placement = tree.layout(in: bounds, gap: config.gap, minimums: minimumSizes)[window.id]
+                else { return }
+                target = placement
+            }
         }
         let client = DisplayMover.Client(topology: { self.environment.inventory().topology },
             membership: { self.environment.space(window.id) }, frame: window.readCurrentFrame,
@@ -512,9 +656,9 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
             return
         }
         if !resized, let source, key(for: window, in: snapshot) == source,
-           let tree = layoutState.trees[source], tree.contains(window.id),
            let cursor = environment.cursor(), let bounds = bounds(for: source, in: snapshot),
-           let target = tree.window(at: cursor, excluding: window.id, in: bounds, gap: config.gap) {
+           let frames = arrangement(for: source, bounds: bounds)?.frames, frames[window.id] != nil,
+           let target = BSPTree.window(at: cursor, excluding: window.id, in: frames) {
             layoutState.swap(window.id, with: target, in: source)
         }
         reconcile()

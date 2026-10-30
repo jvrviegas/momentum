@@ -102,6 +102,7 @@ Update the checklist **and summary above** whenever implementation or validation
 - [x] Floating windows, app exclusions, and a menu-bar toggle to pause tiling.
 - [x] Configurable shortcuts through Settings and live-reloaded JSON.
 - [x] Animated layout transitions with Reduce Motion support.
+- [ ] **Awaiting validation:** windows that can't shrink to their tile get room from their neighbors, and a window that still doesn't fit floats until there's room; 221 automated tests and an agent-run check with Slack, Terminal, Chrome and Xcode passed; owner acceptance remains.
 - [ ] **Awaiting validation:** multi-display tiling, cross-display focus and optional display-transfer shortcuts are implemented; 179 tests, 16 native checks and 19 owner-observed guarded-preview checks passed. Unrestricted real-app/startup validation and full-SIP compatibility remain pending.
 
 ### ☕ Keep work uninterrupted
@@ -140,6 +141,7 @@ Flow has passed automated, agent-verified, and owner-confirmed checks, including
 - **Multi-display:** [implementation plan](docs/plans/multi-display-tiling-implementation-plan.md).
 - **Keep Awake:** [implementation plan](docs/plans/keep-awake-implementation-plan.md) · [validation record](docs/qa/keep-awake-validation.md).
 - **Flow:** [feature spec](docs/plans/flow-feature-spec.md) · [validation record](docs/qa/flow-validation.md).
+- **Window minimum sizes:** [feature spec](docs/plans/window-minimum-sizes-feature-spec.md).
 - **Focus and release work:** tracked above; add detailed plans when work begins.
 
 > **Outside v1:** clipboard history, app launching, notes, task management, and detailed productivity analytics.

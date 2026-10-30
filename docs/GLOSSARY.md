@@ -37,6 +37,7 @@ warmer when a session finishes.
 | Window Tiling | Arranging windows automatically into tiles | layout engine, BSP |
 | Retile | Arrange the current windows again | refresh, reflow |
 | Floating | A window or app that stays outside tiling | excluded, ignored |
+| Minimum size | The smallest size an app allows for one of its windows | min size, size limit, minimum dimensions |
 | Focus (left, right, up, down) | Move keyboard focus to the neighboring window. Used only for windows, never for Flow | select, activate |
 | Desktop | A native macOS Desktop | Space, workspace |
 | Display | A connected screen | monitor, screen |

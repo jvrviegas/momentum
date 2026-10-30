@@ -21,6 +21,8 @@ final class AXQueues {
     private var accepted: [WindowID: CGRect?] = [:]
     /// Apps whose enhanced Accessibility mode is off while their windows' writes run; see `setEnhancedUI`.
     private var enhancedUIOff: Set<pid_t> = []
+    /// Callers of `settledFrame` waiting for a window's writes to finish.
+    private var settling: [WindowID: [CheckedContinuation<Void, Never>]] = [:]
 
     /// Writes run in order per app. A frame submitted while an earlier one is still being written replaces
     /// any frame already waiting, so a slow app skips animation frames instead of falling behind.
@@ -29,6 +31,14 @@ final class AXQueues {
         let request = FrameRequest(window: window, frame: frame, previous: previous,
                                    forceResize: forceResize, repairClamping: repairClamping)
         if writing[window.id] != nil { pending[window.id] = request } else { start(request) }
+    }
+
+    /// The window's frame once the writes submitted so far have finished; nil if the app didn't answer.
+    func settledFrame(of window: AXWindow) async -> CGRect? {
+        if writing[window.id] != nil {
+            await withCheckedContinuation { settling[window.id, default: []].append($0) }
+        }
+        return await run(window.pid) { window.frame }
     }
 
     func focus(_ window: AXWindow) {
@@ -62,6 +72,7 @@ final class AXQueues {
                 start(next)
             } else {
                 accepted[id] = nil
+                for waiter in settling.removeValue(forKey: id) ?? [] { waiter.resume() }
                 if !writing.values.contains(pid), enhancedUIOff.remove(pid) != nil {
                     Task { _ = await run(pid) { Self.setEnhancedUI(of: pid, from: false, to: true) } }
                 }

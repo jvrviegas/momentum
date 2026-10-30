@@ -220,6 +220,13 @@ struct MenuBarContent: View {
             .buttonStyle(.borderless)
             .disabled(!manager.isEnabled || !manager.isTrusted)
 
+            if let message = manager.noRoomMessage {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             if !manager.isTrusted {
                 Text("Tiling needs Device Control and Data Access permissions. Keep Awake does not.")
                     .font(.caption)
