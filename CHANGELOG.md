@@ -2,6 +2,27 @@
 
 Notable changes to Momentum are documented here. Versions follow Semantic Versioning; `0.x` releases are early-stage and may change before stabilization.
 
+## [0.7.0] - 2026-10-30
+
+Early-stage prerelease with a development-signed app ZIP for local testing. It is not Developer ID-signed or notarized; automatic-update delivery is not validated.
+
+### Added
+
+- Windows that can't shrink to fit their tile, like Slack, Chrome, and Xcode, get room from their neighbors instead of overlapping them. Momentum learns each window's minimum size from the size its app keeps, and a split stacks its windows while side by side doesn't fit.
+- A window that still doesn't fit floats at the center of the display until there's room, then rejoins the layout. The Window Tiling panel says which window floats, Toggle floating gives a window priority, and Retile measures minimum sizes again.
+- While you drag a tiled window, outlines show the tiles and displays it can go to, and the place it lands on release is filled.
+
+### Fixed
+
+- A quick drag onto another tiled window now swaps the two. Before, the dragged window stayed where it was dropped, on top of its neighbor.
+
+### Compatibility
+
+- Validation includes 225 automated tests, agent-run checks with Slack, Terminal, Chrome, Xcode, and test apps, and owner use of the installed build.
+- Minimum sizes are learned while Momentum runs and never saved. Several new windows at once can move a few times before they settle.
+- Existing native Desktop API, SIP, and multi-display validation limitations remain unchanged.
+- The downloadable ZIP is a development build for testing, not a notarized installer or a signed Sparkle update.
+
 ## [0.6.4] - 2026-10-29
 
 Early-stage prerelease with a development-signed app ZIP for local testing. It is not Developer ID-signed or notarized; automatic-update delivery is not validated.
