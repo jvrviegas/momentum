@@ -7,4 +7,9 @@ enum Palette {
     static let surface: some ShapeStyle = HierarchicalShapeStyle.quaternary.opacity(0.5)
     /// Symbols that flag a failure or something that needs attention.
     static let warning = Color.orange
+    /// The outline of a place a dragged window can go. Increase Contrast draws it in the full accent.
+    static let dropPlace: some ShapeStyle = TintShapeStyle.tint.opacity(0.6)
+    /// The fill of the place a dragged window goes if released now.
+    static let dropLanding: some ShapeStyle = TintShapeStyle.tint.opacity(0.25)
+    static let dropLandingIncreasedContrast: some ShapeStyle = TintShapeStyle.tint.opacity(0.4)
 }

@@ -103,6 +103,7 @@ Update the checklist **and summary above** whenever implementation or validation
 - [x] Configurable shortcuts through Settings and live-reloaded JSON.
 - [x] Animated layout transitions with Reduce Motion support.
 - [ ] **Awaiting validation:** windows that can't shrink to their tile get room from their neighbors, and a window that still doesn't fit floats until there's room; 221 automated tests and an agent-run check with Slack, Terminal, Chrome and Xcode passed; owner acceptance remains.
+- [ ] **Awaiting validation:** dragging a tiled window outlines where it can go and fills where it lands, and quick drags swap too instead of leaving the window floating; 225 automated tests and an agent-run drag check with a test app passed; owner acceptance remains.
 - [ ] **Awaiting validation:** multi-display tiling, cross-display focus and optional display-transfer shortcuts are implemented; 179 tests, 16 native checks and 19 owner-observed guarded-preview checks passed. Unrestricted real-app/startup validation and full-SIP compatibility remain pending.
 
 ### ☕ Keep work uninterrupted
@@ -206,7 +207,7 @@ Send-to-Desktop numbers follow normal Mission Control Desktop order **on the foc
 
 Each display/Desktop pair keeps an independent layout. Directional focus crosses an edge when no local tiled neighbor exists; swaps stay on the current display. Bind **Send window to previous/next display** to move windows through normal Desktop displays in physical center order, with wrapping and focus following only after confirmed placement. Fullscreen/unknown destinations are skipped; one eligible display is a no-op.
 
-Drag a tiled window across displays and release it to join the destination layout. Floating/excluded windows stay untiled; keyboard transfers keep their size where possible and clamp placement to usable bounds. Disconnect/reconnect follows macOS's actual relocation without Momentum actively moving windows back.
+Drag a tiled window onto another tile to swap them, or across displays and release it to join the destination layout. While you drag, Momentum outlines where the window can go and fills the place it lands on release. Floating/excluded windows stay untiled; keyboard transfers keep their size where possible and clamp placement to usable bounds. Disconnect/reconnect follows macOS's actual relocation without Momentum actively moving windows back.
 
 Settings remain shared across displays. Source behavior and outstanding validation limits are in the [draft functional spec](docs/spec/multi-display-tiling.md) and [QA record](docs/qa/multi-display-tiling-validation.md).
 
