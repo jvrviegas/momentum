@@ -62,9 +62,12 @@ struct TilingEnvironment {
     var reportError: () -> Void
     /// Rereads windows, which `windows` and `focusedWindow` then report. Nil when they're always current.
     var reload: (() async -> Void)? = nil
+    /// Shows where a dragged window can go; nil hides it.
+    var showDropTargets: (DropTargets?) -> Void = { _ in }
 
     static func native(observer: WindowObserver) -> Self {
-        Self(inventory: { Spaces.displayInventory() },
+        let overlay = DropTargetOverlay()
+        return Self(inventory: { Spaces.displayInventory() },
              display: { Spaces.display($0) },
              windows: { observer.windows.map { .native($0, queues: observer.queues) } },
              focusedWindow: {
@@ -98,7 +101,8 @@ struct TilingEnvironment {
              },
              wait: { try await Task.sleep(for: .milliseconds(20)) },
              reportError: { NSSound.beep() },
-             reload: { await observer.reload() })
+             reload: { await observer.reload() },
+             showDropTargets: { overlay.show($0) })
     }
 }
 

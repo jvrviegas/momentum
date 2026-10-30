@@ -23,6 +23,16 @@ final class AXQueues {
     private var enhancedUIOff: Set<pid_t> = []
     /// Callers of `settledFrame` waiting for a window's writes to finish.
     private var settling: [WindowID: [CheckedContinuation<Void, Never>]] = [:]
+    /// When each window's last write finished.
+    private var written: [WindowID: Double] = [:]
+
+    /// Apps report a write as a move or resize shortly after it finishes.
+    private static let writeEcho = 0.15
+
+    /// Whether Momentum is moving the window or just did, so the app's move and resize reports are Momentum's.
+    func isMoving(_ id: WindowID) -> Bool {
+        writing[id] != nil || CACurrentMediaTime() - (written[id] ?? -.infinity) < Self.writeEcho
+    }
 
     /// Writes run in order per app. A frame submitted while an earlier one is still being written replaces
     /// any frame already waiting, so a slow app skips animation frames instead of falling behind.
@@ -67,6 +77,7 @@ final class AXQueues {
             }
             if turnedOff { enhancedUIOff.insert(pid) }
             writing[id] = nil
+            written[id] = CACurrentMediaTime()
             if let next = pending.removeValue(forKey: id) {
                 accepted[id] = .some(succeeded ? request.frame : nil)
                 start(next)

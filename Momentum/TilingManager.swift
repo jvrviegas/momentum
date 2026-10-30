@@ -40,6 +40,7 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
     @ObservationIgnored private(set) var desktopSwitchTask: Task<Void, Never>?
     @ObservationIgnored private(set) var moveTask: Task<Void, Never>?
     @ObservationIgnored private(set) var pointerReleaseTask: Task<Void, Never>?
+    @ObservationIgnored private(set) var dragTask: Task<Void, Never>?
     @ObservationIgnored private var isSuspended = false
     @ObservationIgnored private var isTrackingDrag = false
     @ObservationIgnored private var dragResized = false
@@ -626,22 +627,54 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
         }
     }
 
-    private func trackDrag(of id: WindowID, isResize: Bool) {
+    /// Internal event seam for injected coordinator tests; only native observer callbacks call this live.
+    /// Called after release too: macOS reports a quick drag only once it ends.
+    func trackDrag(of id: WindowID, isResize: Bool) {
         guard isEnabled, !isSuspended, environment.windows().first(where: { $0.id == id })?.isStandard == true else { return }
         guard !isTrackingDrag else { if isResize { dragResized = true }; return }
         cancelAnimations()
         isTrackingDrag = true
         dragResized = isResize
         dragSource = layoutState.trees.first(where: { $0.value.contains(id) })?.key
-        Task { [weak self] in
+        // The window follows the pointer, so its frame now and the pointer tell where it is later.
+        let grab = environment.mousePressed()
+            ? environment.serverFrame(id).flatMap { frame in environment.cursor().map { (frame: frame, pointer: $0) } }
+            : nil
+        dragTask = Task { [weak self] in
             guard let self else { return }
-            while environment.mousePressed() { try? await environment.wait() }
+            while environment.mousePressed() {
+                environment.showDropTargets(dropTargets(for: id, grab: grab))
+                try? await environment.wait()
+            }
+            environment.showDropTargets(nil)
             // The drop needs where the drag left the window.
             await environment.reload?()
             isTrackingDrag = false
             guard let window = environment.windows().first(where: { $0.id == id }) else { return }
             drop(window, source: dragSource, resized: dragResized)
         }
+    }
+
+    /// Where the dragged tiled window can go, and where it goes if released now, as `drop` decides (MD-32).
+    private func dropTargets(for id: WindowID, grab: (frame: CGRect, pointer: CGPoint)?) -> DropTargets? {
+        guard isEnabled, !dragResized, let source = dragSource, let bounds = bounds(for: source, in: inventory),
+              let tiles = arrangement(for: source, bounds: bounds)?.frames, tiles[id] != nil else { return nil }
+        let padding = config.outerPadding
+        let displays = inventory.topology.eligibleDisplays.filter { $0.id != source.displayID }
+        let places = tiles.filter { $0.key != id }.sorted { $0.key < $1.key }.map(\.value)
+            + displays.map { $0.tilingBounds(padding: padding) }
+        let pointer = environment.cursor()
+        var landing: CGRect?
+        if let grab, let pointer,
+           let owner = inventory.topology.owner(of: grab.frame.offsetBy(dx: pointer.x - grab.pointer.x,
+                                                                        dy: pointer.y - grab.pointer.y)),
+           owner.id != source.displayID {
+            // Across displays, the window's center picks the display.
+            landing = owner.isEligible ? owner.tilingBounds(padding: padding) : nil
+        } else if let pointer, let target = BSPTree.window(at: pointer, excluding: id, in: tiles) {
+            landing = tiles[target]
+        }
+        return DropTargets(window: id, places: places, landing: landing)
     }
 
     /// Internal event seam for injected coordinator tests; only native observer callbacks call this live.

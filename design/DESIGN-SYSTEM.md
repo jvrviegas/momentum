@@ -34,6 +34,9 @@ view first needs it, not before.
   glass shows through. Use it only through `Panel`.
 - `warning`: the one status color (system orange). It colors the warning **symbol**,
   never a whole sentence: orange text is hard to read on a light background.
+- `dropPlace`, `dropLanding`: the drag overlay (MD-32). A 2 pt accent outline at 60%
+  around each place a dragged window can go, and a 25% accent fill (40% with Increase
+  Contrast) where it lands. Increase Contrast draws the outlines in the full accent.
 - Never copy or redefine a semantic color (`.secondary`, `.separator`). Every new
   custom color needs light, dark, and Increase Contrast values.
 

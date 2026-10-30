@@ -32,6 +32,13 @@ final class WindowObserver {
     private var lateReads: Set<pid_t> = []
     /// Windows registered for their destroyed notification, as of the last `reload()`.
     private var watchedWindows: Set<WindowID> = []
+    /// When the left button last went up, and the monitor that records it.
+    private var leftMouseUp = -Double.infinity
+    private var mouseUpMonitor: Any?
+
+    /// How long after the left button goes up a move report still ends the user's drag. Apps sent it
+    /// about 12 ms after release in testing; busy apps can be slower.
+    private static let dragEndReport = 0.3
 
     private static let appNotifications = [
         kAXWindowCreatedNotification,
@@ -67,6 +74,10 @@ final class WindowObserver {
         listen(NotificationCenter.default, NSApplication.didChangeScreenParametersNotification) { [weak self] _ in self?.onEvent?() }
 
         tasks.append(Task { [weak self] in await self?.pollOnScreenWindows() })
+        // Sees the release that ends a drag in another app. CGEventSource's last-event times missed it in testing.
+        mouseUpMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseUp) { [weak self] _ in
+            self?.leftMouseUp = CACurrentMediaTime()
+        }
     }
 
     /// All windows of observed apps as of the last `reload()`. AX only reports windows on the currently visible Spaces.
@@ -241,8 +252,11 @@ final class WindowObserver {
         AXUIElementGetPid(element, &pid)
         switch notification {
         case kAXWindowMovedNotification, kAXWindowResizedNotification:
-            // Our own frame changes also send these; only mouse-driven ones matter.
-            if NSEvent.pressedMouseButtons & 1 != 0, let window = AXWindow(element: element, pid: pid) {
+            // Our own frame changes also send these; only mouse-driven ones matter. macOS reports a drag
+            // only about every 110 ms, plus once just after release, so a quick drag shows up only then.
+            let released = CACurrentMediaTime() - leftMouseUp
+            if NSEvent.pressedMouseButtons & 1 != 0 || released < Self.dragEndReport,
+               let window = AXWindow(element: element, pid: pid), !queues.isMoving(window.id) {
                 onUserDrag?(window, notification == kAXWindowResizedNotification)
             }
             return

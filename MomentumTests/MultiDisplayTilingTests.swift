@@ -69,6 +69,7 @@ final class TilingFixture {
     var ticks: [DisplayID: () -> Bool] = [:]
     var invalidated: [DisplayID] = []
     var provideLinks = false
+    var dropTargets: [DropTargets?] = []
 
     init(shared: Bool = false) {
         let a = DisplayTopology.Display(id: 1, frame: CGRect(x: 0, y: 0, width: 1000, height: 800),
@@ -114,7 +115,8 @@ final class TilingFixture {
                   return .init(invalidate: { self.invalidated.append(id); self.ticks[id] = nil })
               },
               wait: { self.onWait?(); self.time += 0.02; await Task.yield() },
-              reportError: { self.errors += 1 })
+              reportError: { self.errors += 1 },
+              showDropTargets: { self.dropTargets.append($0) })
     }
     func manager(trusted: Bool = true) -> TilingManager {
         TilingManager(configStore: config.store, environment: environment, initiallyTrusted: trusted)
@@ -441,6 +443,84 @@ struct MultiDisplayTilingTests {
         #expect(manager.layoutState.trees.values.allSatisfy { !$0.contains(1) })
         #expect(first.frame == CGRect(x: 1100, y: 30, width: 200, height: 100))
         #expect(f.moves.isEmpty)
+    }
+
+    @Test func draggingShowsWhereTheWindowCanGoThenSwapsOnRelease() async {
+        let f = TilingFixture(); defer { f.cleanup() }
+        let first = FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 200, height: 100), space: 10)
+        let second = FakeTilingWindow(2, CGRect(x: 10, y: 30, width: 200, height: 100), space: 10)
+        f.windows = [first, second]
+        let manager = f.manager(); manager.retile()
+        let (left, right) = (first.frame, second.frame)
+        let otherDisplay = f.displayInventory.topology.displays[1].tilingBounds(padding: f.config.store.config.outerPadding)
+        f.mouse = true
+        f.pointer = CGPoint(x: left.midX, y: left.minY + 10)
+        var waits = 0
+        f.onWait = {
+            waits += 1
+            if waits == 1 { f.pointer = CGPoint(x: right.midX, y: right.midY) } else { f.mouse = false }
+        }
+        manager.trackDrag(of: 1, isResize: false)
+        await manager.dragTask?.value
+        // Over its own tile nothing is filled; over the other tile, that tile is.
+        #expect(f.dropTargets == [DropTargets(window: 1, places: [right, otherDisplay], landing: nil),
+                                  DropTargets(window: 1, places: [right, otherDisplay], landing: right), nil])
+        #expect(first.frame == right && second.frame == left)
+    }
+
+    @Test func aDragReportedOnlyAfterReleaseStillSwaps() async {
+        let f = TilingFixture(); defer { f.cleanup() }
+        let first = FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 200, height: 100), space: 10)
+        let second = FakeTilingWindow(2, CGRect(x: 10, y: 30, width: 200, height: 100), space: 10)
+        f.windows = [first, second]
+        let manager = f.manager(); manager.retile()
+        let (left, right) = (first.frame, second.frame)
+        first.frame = left.offsetBy(dx: 300, dy: 40)
+        f.pointer = CGPoint(x: right.midX, y: right.midY)
+        manager.trackDrag(of: 1, isResize: false)
+        await manager.dragTask?.value
+        #expect(f.dropTargets.allSatisfy { $0 == nil })
+        #expect(first.frame == right && second.frame == left)
+    }
+
+    @Test func draggingToAnotherDisplayFillsTheDisplayItJoins() async {
+        let f = TilingFixture(); defer { f.cleanup() }
+        let dragged = FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 200, height: 100), space: 10)
+        f.windows = [dragged, FakeTilingWindow(2, CGRect(x: 1100, y: 30, width: 200, height: 100), space: 20)]
+        let manager = f.manager(); manager.retile()
+        let start = dragged.frame
+        let otherDisplay = f.displayInventory.topology.displays[1].tilingBounds(padding: f.config.store.config.outerPadding)
+        f.mouse = true
+        f.pointer = CGPoint(x: start.midX, y: start.minY + 10)
+        f.onWait = {
+            guard f.dropTargets.count < 2 else { f.mouse = false; return }
+            // The window's center crosses onto the other display before the pointer would.
+            dragged.frame = start.offsetBy(dx: 700, dy: 0)
+            f.pointer = CGPoint(x: start.midX + 700, y: start.minY + 10)
+        }
+        manager.trackDrag(of: 1, isResize: false)
+        await manager.dragTask?.value
+        await manager.moveTask?.value
+        #expect(f.dropTargets.dropLast().last??.landing == otherDisplay)
+        #expect(dragged.space == 20)
+    }
+
+    @Test func resizesAndFloatingWindowsShowNoDropTargets() async {
+        let f = TilingFixture(); defer { f.cleanup() }
+        let first = FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 200, height: 100), space: 10)
+        let second = FakeTilingWindow(2, CGRect(x: 10, y: 30, width: 200, height: 100), space: 10)
+        f.windows = [first, second]
+        let manager = f.manager(); manager.retile()
+        f.pointer = CGPoint(x: second.frame.midX, y: second.frame.midY)
+        f.onWait = { f.mouse = false }
+        f.mouse = true
+        manager.trackDrag(of: 1, isResize: true)
+        await manager.dragTask?.value
+        f.focusedID = 1; manager.perform(.toggleFloat)
+        f.mouse = true
+        manager.trackDrag(of: 1, isResize: false)
+        await manager.dragTask?.value
+        #expect(f.dropTargets.allSatisfy { $0 == nil })
     }
 
     @Test func crossDropNativeFailureKeepsObservedStateAndDismissibleError() async {

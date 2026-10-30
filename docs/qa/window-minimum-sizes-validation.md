@@ -36,3 +36,7 @@ Rules: MD-22 to MD-31 in [the living spec](../spec/multi-display-tiling.md). Fea
 - Learning takes a few passes, so a crowd of new windows visibly moves several times before it settles (11 size events for the ten-window Retile).
 - When Momentum starts, every window joins at once in the order macOS lists them, so the window that floats isn't necessarily the newest. In the light-mode check, Slack floated and the probe tiled.
 - A floating window keeps the size of its last tile, which can be tall and narrow (a 177 × 1393 Terminal in V7).
+
+## Owner acceptance
+
+2026-10-30: the owner accepted the feature after using the installed build with their own apps, together with the drag targets and quick-drag fix (MD-32, MD-33).
