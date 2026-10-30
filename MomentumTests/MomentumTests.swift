@@ -313,13 +313,13 @@ struct BSPTreeTests {
     }
 
     @Test func directionalNeighbors() {
-        let tree = threeWindowTree()
-        #expect(tree.neighbor(of: 2, direction: .down, bounds: bounds) == 3)
-        #expect(tree.neighbor(of: 3, direction: .up, bounds: bounds) == 2)
-        #expect(tree.neighbor(of: 3, direction: .left, bounds: bounds) == 1)
-        #expect(tree.neighbor(of: 2, direction: .left, bounds: bounds) == 1)
-        #expect(tree.neighbor(of: 1, direction: .left, bounds: bounds) == nil)
-        #expect(tree.neighbor(of: 1, direction: .up, bounds: bounds) == nil)
+        let frames = threeWindowTree().layout(in: bounds, gap: 0)
+        #expect(BSPTree.neighbor(of: 2, direction: .down, in: frames) == 3)
+        #expect(BSPTree.neighbor(of: 3, direction: .up, in: frames) == 2)
+        #expect(BSPTree.neighbor(of: 3, direction: .left, in: frames) == 1)
+        #expect(BSPTree.neighbor(of: 2, direction: .left, in: frames) == 1)
+        #expect(BSPTree.neighbor(of: 1, direction: .left, in: frames) == nil)
+        #expect(BSPTree.neighbor(of: 1, direction: .up, in: frames) == nil)
     }
 
     @Test func swapExchangesPositions() {
@@ -354,10 +354,10 @@ struct BSPTreeTests {
     }
 
     @Test func windowAtPointIgnoresTheDraggedWindowAndGaps() {
-        let tree = threeWindowTree()
+        let frames = threeWindowTree().layout(in: bounds, gap: 10)
         let bottomRight = CGPoint(x: 750, y: 450)
-        #expect(tree.window(at: bottomRight, excluding: 1, in: bounds, gap: 10) == 3)
-        #expect(tree.window(at: bottomRight, excluding: 3, in: bounds, gap: 10) == nil)
-        #expect(tree.window(at: CGPoint(x: 500, y: 100), excluding: 2, in: bounds, gap: 10) == nil)
+        #expect(BSPTree.window(at: bottomRight, excluding: 1, in: frames) == 3)
+        #expect(BSPTree.window(at: bottomRight, excluding: 3, in: frames) == nil)
+        #expect(BSPTree.window(at: CGPoint(x: 500, y: 100), excluding: 2, in: frames) == nil)
     }
 }

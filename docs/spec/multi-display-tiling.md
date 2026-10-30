@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | **Area owner** | João |
-| **Verification** | 2026-10-10: native integration tests; separate-Spaces/custom-SIP helper feasibility and fullscreen snapshot replay; 2026-10-12: 179 tests, 16 native coordinator checks and 19 owner-observed guarded-preview manual passes; unrestricted/compatibility limits remain; 2026-10-29: 205 tests and Release-build traces with a main-thread probe across animation, shortcut and unresponsive-app scenarios (MD-17 to MD-20) |
+| **Verification** | 2026-10-10: native integration tests; separate-Spaces/custom-SIP helper feasibility and fullscreen snapshot replay; 2026-10-12: 179 tests, 16 native coordinator checks and 19 owner-observed guarded-preview manual passes; unrestricted/compatibility limits remain; 2026-10-29: 205 tests and Release-build traces with a main-thread probe across animation, shortcut and unresponsive-app scenarios (MD-17 to MD-20); 2026-10-30: 221 tests including minimum-size layout, learning, set-aside and transfer cases (MD-22 to MD-31), and an agent-run live check with Slack, Terminal, Chrome, Xcode and a probe app on one display; owner acceptance pending |
 
 ## Overview
 
@@ -43,6 +43,19 @@ This worktree tiles normal windows on each logical display's visible Desktop ind
 - **MD-13.** When a display shows fullscreen or uncertain Space mapping, it is not a transfer/focus destination. Fullscreen, minimized, hidden and nonstandard source windows are not manipulated. Commands never automatically exit fullscreen or create/switch Desktops.
 - **MD-14.** When an old configuration loads, both new display actions are unbound and old action registration priority remains unchanged. Settings/JSON can bind or explicitly clear `send-to-previous-display` and `send-to-next-display`; omitted defaults remain unbound.
 
+### Minimum sizes
+
+- **MD-22.** When Momentum resizes a window and the app keeps it larger than asked, Momentum remembers that width or height as the window's minimum size and lays the display out again. It doesn't keep animating a window toward a size its app refuses. While the window's top-left corner stays where Momentum put it, the window belongs to that display, even if its larger size reaches into another one.
+- **MD-23.** When a window ends at most 8 pt larger than asked, as apps that size in steps do (Terminal rounds by about 3 pt at its default font), Momentum doesn't treat that as a minimum size.
+- **MD-24.** When Retile runs, from the menu or the shortcut, Momentum forgets every remembered minimum size and measures again. Minimum sizes are also forgotten when the window closes or Momentum quits. They are never saved.
+- **MD-25.** When one side of a split needs more than half the space for its windows' minimum sizes, that side gets what it needs and the other side gets the rest. Splits whose windows fit stay equal. Once a layout makes room, a window whose minimum size isn't known yet counts as needing 100 × 100 pt, so no tile shrinks to nothing. Focus, swaps, and drops use these tiles.
+- **MD-26.** When the two sides of a split can't fit side by side at their minimum sizes but fit stacked, or the reverse, that split is laid out the other way. It returns to its own direction as soon as that fits again. The stored layout doesn't change.
+- **MD-27.** When windows on a display still don't fit, Momentum tiles them in the order they joined that display's layout, and each window that doesn't fit with the windows before it floats. Usually that's the newest window. A window that floats this way keeps its size and moves to the center of the display's tiling area, or to its top or left edge where the window is larger than the area. After that it stays wherever people move it. Momentum doesn't change focus or window order.
+- **MD-28.** When there's room again (a window closes or floats, the display grows, gaps change, or Retile measures smaller minimum sizes), windows that float because they didn't fit rejoin their place in the layout, oldest first.
+- **MD-29.** When Toggle floating tiles a window, including one that floats because it didn't fit, that window takes priority: the newest other windows that don't fit float instead. If the window doesn't fit on its display even alone, it stays floating and Momentum beeps.
+- **MD-30.** When a window is sent or dragged to a display where it doesn't fit, it moves to the center of that display's tiling area (MD-27) and floats there until there's room. A window larger than the destination's usable area can't be sent, and Momentum shows the move error (MD-16).
+- **MD-31.** While any window on a visible Desktop floats because it doesn't fit, the Window Tiling panel says "Xcode floats until there's room to tile it." (the app's name) or "2 windows float until there's room to tile them." The message disappears when they rejoin.
+
 ### Errors and limits
 
 - **MD-15.** When Desktop N is unavailable on the selected display, Momentum reports an error without sending the window. A same-Desktop command is a no-op.
@@ -78,9 +91,12 @@ This worktree tiles normal windows on each logical display's visible Desktop ind
 - Fully enabled SIP compatibility is unverified; owner approved implementation with that explicit gap. Do not ask users to disable SIP.
 - Shared-Spaces live tests were skipped at owner's request, not passed. Conservative fixture-based shared normalization may leave unfamiliar native snapshots unmanaged.
 - Mirroring-specific runtime inventory and final mixed-scale/refresh animation smoothness are unverified. Pure exact-frame mirror deduplication is not full mirroring QA.
-- Applications can refuse resizing or impose minimum sizes; a transfer that cannot settle to its requested usable placement reports failure rather than pretending it fit. Frame writes report success once submitted, so an app refusing a transfer's write surfaces as the confirmation timeout, not a refused-write error.
+- Applications can refuse resizing; a transfer that cannot settle to its requested usable placement reports failure rather than pretending it fit. Frame writes report success once submitted, so an app refusing a transfer's write surfaces as the confirmation timeout, not a refused-write error. A minimum size Momentum hasn't learned yet can still make a transfer time out.
+- A window's first tiling can show a few moves, because a minimum size is only known after Momentum resizes the window once (MD-22).
+- When Momentum starts, every window joins its display's layout at once, in the order macOS lists them, so the window that floats for lack of room (MD-27) isn't necessarily the newest.
+- An app that lowers a window's minimum size while it's open keeps the larger tile until Retile or the window closes. Fixed-size windows that can't grow keep their size at the tile's top-left corner, leaving a gap; maximum sizes aren't handled.
 - Inactive membership queries that lack evidence of closure retain layout entries; actual visible ownership reconciles on refresh.
 - If Momentum quits while an app's frame writes are running, that app's enhanced Accessibility mode stays off until the app or the assistive app that enabled it turns it on again (MD-21).
 - Prior MDF foundation-only unavailable/inert rules were superseded by this native integration. The proposal remains unarchived until acceptance.
 
-Evidence: [validation record](../qa/multi-display-tiling-validation.md). Scope/decisions: [implementation plan](../plans/multi-display-tiling-implementation-plan.md).
+Evidence: [validation record](../qa/multi-display-tiling-validation.md). Scope/decisions: [implementation plan](../plans/multi-display-tiling-implementation-plan.md); minimum sizes: [feature spec](../plans/window-minimum-sizes-feature-spec.md).

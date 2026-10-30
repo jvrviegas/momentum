@@ -11,11 +11,14 @@ final class FakeTilingWindow {
     var space: SpaceID
     var standard = true
     var bundleID: String? = "test.app"
+    var appName: String?
     var writes: [CGRect] = []
     var writeFrom: [CGRect?] = []
     var resizeFlags: [(Bool, Bool)] = []
     var succeeds = true
     var refusesResize = false
+    /// The app keeps the window at least this large, as an app with a minimum size does.
+    var minimumSize = CGSize.zero
     var focused = 0
     var onWrite: (() -> Void)?
 
@@ -25,16 +28,19 @@ final class FakeTilingWindow {
     }
     var handle: TilingEnvironment.Window {
         .init(id: id, bundleID: bundleID, readStandard: { self.standard }, readFrame: { self.frame },
-              readCurrentFrame: { self.frame },
+              readCurrentFrame: { self.frame }, readSettledFrame: { self.frame },
               writeFrame: { frame, previous, resize, repair in
                   self.writes.append(frame)
                   self.writeFrom.append(previous)
                   self.resizeFlags.append((resize, repair))
                   guard self.succeeds, !(self.refusesResize && resize) else { return false }
+                  var frame = frame
+                  frame.size.width = max(frame.width, self.minimumSize.width)
+                  frame.size.height = max(frame.height, self.minimumSize.height)
                   self.frame = frame; self.serverFrame = frame
                   self.onWrite?()
                   return true
-              }, focus: { self.focused += 1 })
+              }, focus: { self.focused += 1 }, readAppName: { self.appName })
     }
 }
 

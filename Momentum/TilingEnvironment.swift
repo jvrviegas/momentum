@@ -10,8 +10,11 @@ struct TilingEnvironment {
         let readFrame: () -> CGRect?
         /// Asks the app now, where `readFrame` may report the last read.
         let readCurrentFrame: () async -> CGRect?
+        /// Asks the app once Momentum's writes to the window have finished.
+        let readSettledFrame: () async -> CGRect?
         let writeFrame: (CGRect, CGRect?, Bool, Bool) -> Bool
         let focus: () -> Void
+        var readAppName: () -> String? = { nil }
 
         var isStandard: Bool { readStandard() }
         var frame: CGRect? { readFrame() }
@@ -23,11 +26,13 @@ struct TilingEnvironment {
             return Self(id: window.id, bundleID: state.bundleID,
                  readStandard: { state.isStandard }, readFrame: { state.frame },
                  readCurrentFrame: { await queues.run(window.pid) { window.frame } },
+                 readSettledFrame: { await queues.settledFrame(of: window) },
                  writeFrame: {
                      queues.writeFrame(window, $0, from: $1, forceResize: $2, repairClamping: $3)
                      return true
                  },
-                 focus: { queues.focus(window) })
+                 focus: { queues.focus(window) },
+                 readAppName: { NSRunningApplication(processIdentifier: window.pid)?.localizedName })
         }
     }
 
