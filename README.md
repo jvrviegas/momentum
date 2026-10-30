@@ -102,8 +102,8 @@ Update the checklist **and summary above** whenever implementation or validation
 - [x] Floating windows, app exclusions, and a menu-bar toggle to pause tiling.
 - [x] Configurable shortcuts through Settings and live-reloaded JSON.
 - [x] Animated layout transitions with Reduce Motion support.
-- [ ] **Awaiting validation:** windows that can't shrink to their tile get room from their neighbors, and a window that still doesn't fit floats until there's room; 221 automated tests and an agent-run check with Slack, Terminal, Chrome and Xcode passed; owner acceptance remains.
-- [ ] **Awaiting validation:** dragging a tiled window outlines where it can go and fills where it lands, and quick drags swap too instead of leaving the window floating; 225 automated tests and an agent-run drag check with a test app passed; owner acceptance remains.
+- [x] Windows that can't shrink to their tile get room from their neighbors, and a window that still doesn't fit floats until there's room.
+- [x] Dragging a tiled window outlines where it can go and fills where it lands; quick drags swap too.
 - [ ] **Awaiting validation:** multi-display tiling, cross-display focus and optional display-transfer shortcuts are implemented; 179 tests, 16 native checks and 19 owner-observed guarded-preview checks passed. Unrestricted real-app/startup validation and full-SIP compatibility remain pending.
 
 ### ☕ Keep work uninterrupted

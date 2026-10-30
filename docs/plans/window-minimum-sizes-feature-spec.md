@@ -4,7 +4,7 @@
 
 | | |
 |---|---|
-| **Status** | Implemented on `feat/window-minimum-sizes`; 221 tests pass; agent-verified with real apps (see validation record); owner acceptance pending |
+| **Status** | Implemented; agent-verified with real apps (see validation record); accepted by the owner on 2026-10-30 |
 | **Owner** | João |
 | **Tech reviewer** | Same-agent implementation; independent review pending |
 | **Client sign-off / Linear project** | N/A — personal Momentum project; repository-local spec |
@@ -121,4 +121,5 @@ The owner chose: neighbors make room, a split flips direction only while it need
 | 2026-10-29 | UX pass: make room, flip while needed, and newest-floats-then-rejoins chosen by the owner; draft behaviors and UX written | João |
 | 2026-10-29 | Spec approved as written, including the UX pass's own decisions; implementation started | João |
 | 2026-10-30 | Live check with Slack, Terminal, Chrome, Xcode and a probe app ([validation record](../qa/window-minimum-sizes-validation.md)). Fixed two bugs it found: a window could be asked for 0 pt (MD-25 now has a 100 pt smallest tile), and such a window then dropped out of tiling. MD-23's step lowered from 20 to 8 pt, because 20 hid real minimum sizes | — |
+| 2026-10-30 | Accepted after the owner used it in the installed build, together with drag targets (MD-32, MD-33) | João |
 | 2026-10-29 | Implemented with 15 new tests (220 pass). MD-27 now says how the window that floats is chosen (join order, which gives MD-29 its priority); MD-30 centers the window instead of using MD-10's floating placement; MD-22 keeps an oversized window on the display Momentum placed it on; MD-23 sets the step to 20 pt. Rules merged into the living spec as draft branch behavior | — |
