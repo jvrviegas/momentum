@@ -170,6 +170,13 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
             windows[window.id] = window
             if !isFloating(window) { ids[LayoutKey(displayID: display.id, spaceID: space), default: []].append(window.id) }
         }
+        // An app that hasn't answered lists none of its windows, and a Desktop that was hidden when an app last
+        // answered has none either. Windows no app reports but that are still on this Desktop keep their place
+        // (MD-18); closing, moving to another Desktop, or being reported as not tileable still removes them.
+        let reported = Set(current.map(\.id))
+        for (key, tree) in layoutState.trees where ids[key] != nil {
+            ids[key]?.append(contentsOf: tree.windows.filter { !reported.contains($0) && memberships[$0] == .space(key.spaceID) })
+        }
         for (key, list) in ids {
             guard let display = inventory.topology.displays.first(where: { $0.id == key.displayID }) else { continue }
             visible[key] = .init(bounds: display.tilingBounds(padding: config.outerPadding), windows: list)
