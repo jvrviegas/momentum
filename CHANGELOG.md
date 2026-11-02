@@ -2,6 +2,20 @@
 
 Notable changes to Momentum are documented here. Versions follow Semantic Versioning; `0.x` releases are early-stage and may change before stabilization.
 
+## [0.7.1] - 2026-11-02
+
+Early-stage prerelease with a development-signed app ZIP for local testing. It is not Developer ID-signed or notarized; automatic-update delivery is not validated.
+
+### Fixed
+
+- Windows side by side, like Slack and Teams, no longer swap places when you return to their Desktop after a while. Momentum used to empty that Desktop's layout when the apps hadn't answered yet, then rebuild it in the order they answered. A window no app has reported yet now keeps its place until it does.
+
+### Compatibility
+
+- Validation includes 228 automated tests and a live check on the owner's Desktops: with Slack on the left and Teams on the right, the 0.7.0 build swapped them on return and this one left them in place.
+- Existing native Desktop API, SIP, and multi-display validation limitations remain unchanged.
+- The downloadable ZIP is a development build for testing, not a notarized installer or a signed Sparkle update.
+
 ## [0.7.0] - 2026-10-30
 
 Early-stage prerelease with a development-signed app ZIP for local testing. It is not Developer ID-signed or notarized; automatic-update delivery is not validated.
