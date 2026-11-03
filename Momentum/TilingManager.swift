@@ -181,9 +181,18 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
             guard let display = inventory.topology.displays.first(where: { $0.id == key.displayID }) else { continue }
             visible[key] = .init(bounds: display.tilingBounds(padding: config.outerPadding), windows: list)
         }
+        // The display that holds each Desktop. One that several displays list (shared Spaces) has no single owner.
+        var spaceOwners: [SpaceID: DisplayID] = [:]
+        var sharedSpaces: Set<SpaceID> = []
+        for (display, snapshot) in inventory.desktops {
+            for space in snapshot.desktopSpaces where spaceOwners.updateValue(display, forKey: space) != nil {
+                sharedSpaces.insert(space)
+            }
+        }
+        for space in sharedSpaces { spaceOwners[space] = nil }
         layoutState.reconcile(visible: visible, connectedDisplays: Set(inventory.topology.displays.map(\.id)),
                               membership: memberships, focused: environment.focusedWindow()?.id,
-                              prioritized: prioritizing)
+                              prioritized: prioritizing, spaceOwners: spaceOwners)
         for key in visible.keys { apply(key) }
         setAside = setAside.filter { layoutState.trees[$0.key] != nil }
         updateNoRoomMessage(on: visible.keys)

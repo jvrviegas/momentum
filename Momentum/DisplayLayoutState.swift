@@ -31,9 +31,10 @@ struct DisplayLayoutState {
     private(set) var joinOrder: [LayoutKey: [WindowID]] = [:]
 
     /// `prioritized` moves to the front of its layout's join order, so it's the last window set aside.
+    /// `spaceOwners` names the one connected display that holds each Desktop, where that's certain.
     mutating func reconcile(visible: [LayoutKey: VisibleLayout], connectedDisplays: Set<DisplayID>,
                             membership: [WindowID: Membership] = [:], focused: WindowID? = nil,
-                            prioritized: WindowID? = nil) {
+                            prioritized: WindowID? = nil, spaceOwners: [SpaceID: DisplayID] = [:]) {
         let keys = visible.keys.filter { key in
             guard connectedDisplays.contains(key.displayID), key.spaceID != 0,
                   let bounds = visible[key]?.bounds else { return false }
@@ -52,13 +53,21 @@ struct DisplayLayoutState {
             }
         }
 
+        // macOS moves a disconnected display's Desktops to another display and keeps their Space IDs, so a
+        // layout follows its Desktop. It replaces any older layout there, because the Desktop wasn't on that
+        // display before. Until a display shows the Desktop, the layout waits like a hidden Desktop's does.
+        for key in Array(trees.keys) where !connectedDisplays.contains(key.displayID) {
+            guard let owner = spaceOwners[key.spaceID], connectedDisplays.contains(owner) else { continue }
+            let moved = LayoutKey(displayID: owner, spaceID: key.spaceID)
+            trees[moved] = trees[key]
+            lastFocused[moved] = lastFocused[key]
+            joinOrder[moved] = joinOrder[key]
+            trees[key] = nil
+            lastFocused[key] = nil
+            joinOrder[key] = nil
+        }
+
         for key in Array(trees.keys) {
-            guard connectedDisplays.contains(key.displayID) else {
-                trees[key] = nil
-                lastFocused[key] = nil
-                joinOrder[key] = nil
-                continue
-            }
             guard current[key] == nil, var tree = trees[key] else { continue }
             for id in tree.windows {
                 if let owner = owners[id], owner != key {

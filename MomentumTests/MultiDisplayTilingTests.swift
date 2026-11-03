@@ -228,7 +228,7 @@ struct MultiDisplayTilingTests {
         #expect(f.windows[0].writes.count == 1)
     }
 
-    @Test func desktopChangesAndDisconnectedDisplaysDropOnlyProvenState() {
+    @Test func desktopChangesKeepLayoutsAndADisconnectedDisplaysLayoutsWaitForTheirDesktop() {
         let f = TilingFixture(); defer { f.cleanup() }
         f.windows = [FakeTilingWindow(1, CGRect(x: 10, y: 30, width: 400, height: 300), space: 10)]
         let manager = f.manager(); manager.retile()
@@ -237,7 +237,8 @@ struct MultiDisplayTilingTests {
         #expect(manager.layoutState.trees[LayoutKey(displayID: 1, spaceID: 10)] == old)
         f.displayInventory = .init(topology: .init(displays: Array(f.displayInventory.topology.displays.suffix(1))), desktops: [:])
         manager.retile()
-        #expect(manager.layoutState.trees.keys.allSatisfy { $0.displayID == 2 })
+        // No display shows Desktop 10 yet, and its window is still on it: the layout waits (MD-11).
+        #expect(manager.layoutState.trees[LayoutKey(displayID: 1, spaceID: 10)] == old)
     }
 
     @Test func focusPrefersLocalThenCrossesTheEdgeWhileSwapStaysLocal() {
