@@ -10,6 +10,8 @@ final class FakeTilingWindow {
     var serverFrame: CGRect?
     var space: SpaceID
     var standard = true
+    /// False once its app hid it without destroying it, as Electron apps do when their window is closed.
+    var orderedIn = true
     var bundleID: String? = "test.app"
     var appName: String?
     var writes: [CGRect] = []
@@ -95,6 +97,7 @@ final class TilingFixture {
                   Dictionary(uniqueKeysWithValues: ids.compactMap { id in self.windows.first { $0.id == id }.map { (id, $0.space) } })
               },
               existingWindowIDs: { self.windowListings += 1; return Set(self.windows.map(\.id)) },
+              isOrderedIn: { id in self.windows.first { $0.id == id }?.orderedIn ?? false },
               serverFrame: { id in self.windows.first { $0.id == id }?.serverFrame },
               moveToSpace: { id, space in
                   if let failure = self.moveFailure { throw failure }

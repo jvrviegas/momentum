@@ -15,6 +15,8 @@ CGSConnectionID CGSMainConnectionID(void);
 uint64_t CGSGetActiveSpace(CGSConnectionID connection);
 uint64_t CGSManagedDisplayGetCurrentSpace(CGSConnectionID connection, CFStringRef displayUUID);
 CFArrayRef _Nullable CGSCopySpacesForWindows(CGSConnectionID connection, int mask, CFArrayRef windowIDs) CF_RETURNS_RETAINED;
+/// Returns 0 on success; `orderedIn` is false for a window that is hidden, minimized, or closed without being destroyed.
+int CGSWindowIsOrderedIn(CGSConnectionID connection, CGWindowID windowID, bool *orderedIn);
 
 CFArrayRef _Nullable MomentumCopyManagedDisplaySpaces(CGSConnectionID connection) CF_RETURNS_RETAINED;
 
