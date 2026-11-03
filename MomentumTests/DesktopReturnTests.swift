@@ -37,7 +37,8 @@ struct DesktopReturnTests {
         environment.reload = {
             let visible = f.displayInventory.topology.displays[0].activeSpace?.id
             for (name, window) in apps where observer.answeringInTime.contains(name) {
-                observer.lastRead[name] = window.space == visible ? [window] : []
+                // An app lists a window only while it's shown on the visible Desktop.
+                observer.lastRead[name] = window.space == visible && window.orderedIn ? [window] : []
             }
         }
         let manager = TilingManager(configStore: f.config.store, environment: environment, initiallyTrusted: true)
@@ -92,6 +93,25 @@ struct DesktopReturnTests {
         #expect(order(s.manager) == [1, 2])
         #expect(s.teams.frame == teamsTile)
         #expect(s.slack.frame == slackTile)
+    }
+
+    /// Electron apps (Granola, Slack, Teams) hide a window when it's closed. WindowServer keeps it on its Desktop,
+    /// but no app lists it, which looks the same as an app that hasn't answered yet.
+    @Test func aWindowItsAppHidWithoutDestroyingItStopsHoldingItsPlace() async {
+        let s = makeSetup(desktop: desktop); defer { s.fixture.cleanup() }
+        await refresh(s.manager)
+        let slackTile = s.slack.frame
+        #expect(order(s.manager) == [1, 2])
+
+        s.slack.orderedIn = false
+        await refresh(s.manager)
+        #expect(order(s.manager) == [1])
+        #expect(s.teams.frame.width > slackTile.width)
+
+        // Showing it again tiles it like any new window.
+        s.slack.orderedIn = true
+        await refresh(s.manager)
+        #expect(order(s.manager) == [1, 2])
     }
 
     @Test(arguments: ["closed", "moved to another Desktop", "minimized"])

@@ -49,6 +49,8 @@ struct TilingEnvironment {
     /// The same as `space` for several windows, without waiting on the main thread.
     var spaces: ([WindowID]) async -> [WindowID: SpaceID]
     var existingWindowIDs: () -> Set<WindowID>?
+    /// Whether WindowServer draws the window. An app that closes a window by hiding it leaves it on its Desktop.
+    var isOrderedIn: (WindowID) -> Bool = { _ in true }
     var serverFrame: (WindowID) -> CGRect?
     var moveToSpace: (WindowID, SpaceID) async throws -> Void
     var switchDesktop: (Int) async -> SpaceMover.SwitchResult
@@ -82,6 +84,7 @@ struct TilingEnvironment {
                      as? [[String: Any]] else { return nil }
                  return Set(list.compactMap { $0[kCGWindowNumber as String] as? WindowID })
              },
+             isOrderedIn: { Spaces.isOrderedIn($0) },
              serverFrame: { AXWindow.serverFrame(for: $0) },
              moveToSpace: { try await SpaceMover.move(windowID: $0, toSpace: $1) },
              switchDesktop: { await SpaceMover.switchTo(desktop: $0) },

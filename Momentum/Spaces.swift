@@ -197,6 +197,13 @@ enum Spaces {
         return spaces?.first?.uint64Value
     }
 
+    /// Whether WindowServer draws `window`. It's false for a window its app hid or minimized, even though the
+    /// window keeps its Space. A window on a Desktop that isn't showing still counts as ordered in.
+    nonisolated static func isOrderedIn(_ window: WindowID) -> Bool {
+        var orderedIn = false
+        return CGSWindowIsOrderedIn(CGSMainConnectionID(), window, &orderedIn) == 0 && orderedIn
+    }
+
     /// Each window's Space, read off the main thread: while windows resize, WindowServer can take
     /// milliseconds to answer.
     @concurrent nonisolated static func spaces(for windows: [WindowID]) async -> [WindowID: SpaceID] {
