@@ -2,6 +2,21 @@
 
 Notable changes to Momentum are documented here. Versions follow Semantic Versioning; `0.x` releases are early-stage and may change before stabilization.
 
+## [0.7.2] - 2026-11-03
+
+Early-stage prerelease with a development-signed app ZIP for local testing. It is not Developer ID-signed or notarized; automatic-update delivery is not validated.
+
+### Fixed
+
+- Windows side by side, like Slack and Teams, no longer swap places when you plug a monitor in or out. macOS moves your Desktops to the other display, and Momentum used to throw away their layouts and rebuild them in the order the apps answered. Each layout now moves with its Desktop and waits for it while macOS finishes the move.
+
+### Compatibility
+
+- Validation includes 235 automated tests, among them the sequence logged on the owner's Mac, where the Desktops reach the new display about a second after the old one disappears. It has not yet been run against a real monitor change on a built ZIP.
+- When Momentum starts, windows still tile in the order macOS lists them, so side-by-side windows can swap after a relaunch.
+- Existing native Desktop API, SIP, and multi-display validation limitations remain unchanged.
+- The downloadable ZIP is a development build for testing, not a notarized installer or a signed Sparkle update.
+
 ## [0.7.1] - 2026-11-02
 
 Early-stage prerelease with a development-signed app ZIP for local testing. It is not Developer ID-signed or notarized; automatic-update delivery is not validated.
