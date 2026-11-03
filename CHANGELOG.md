@@ -2,6 +2,21 @@
 
 Notable changes to Momentum are documented here. Versions follow Semantic Versioning; `0.x` releases are early-stage and may change before stabilization.
 
+## [0.7.3] - 2026-11-03
+
+Early-stage prerelease with a development-signed app ZIP for local testing. It is not Developer ID-signed or notarized; automatic-update delivery is not validated.
+
+### Fixed
+
+- A window its app closed by hiding it, like Granola, Slack and Teams do, no longer keeps its tile. Since 0.7.1, Momentum kept a window no app had reported for as long as it was on its Desktop, which also kept the hidden one, so half the screen stayed empty while the other windows crowded the rest. Such a window now keeps its place only while it's still drawn.
+
+### Compatibility
+
+- Validation includes 236 automated tests, among them a window its app hid without destroying it, and a check on the owner's Mac that the hidden Granola window isn't drawn while Slack, Teams and windows on other Desktops are. It has not yet been run end to end on a built ZIP.
+- When Momentum starts, windows still tile in the order macOS lists them, so side-by-side windows can swap after a relaunch.
+- Existing native Desktop API, SIP, and multi-display validation limitations remain unchanged.
+- The downloadable ZIP is a development build for testing, not a notarized installer or a signed Sparkle update.
+
 ## [0.7.2] - 2026-11-03
 
 Early-stage prerelease with a development-signed app ZIP for local testing. It is not Developer ID-signed or notarized; automatic-update delivery is not validated.
