@@ -475,7 +475,7 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
             dismissDesktopSwitchError()
             desktopSwitchTask = Task { [weak self] in
                 guard let self else { return }
-                var result = await environment.switchDesktop(number)
+                var result = await environment.switchDesktop(number, config.bindings[.switchToDesktop(number)] ?? nil)
                 // After a wake or display change the Dock can ignore Desktop shortcuts until it restarts.
                 // Restarting it restores minimized windows on some macOS builds, so it's the last resort.
                 if result == .timedOut, !Task.isCancelled {
@@ -487,7 +487,8 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
                         lastDesktopSwitchError = "The Dock couldn't be restarted. Try again or restart it manually."
                         return
                     }
-                    result = await environment.switchDesktop(number)
+                    // The key press is long over, so this one always sends the shortcut.
+                    result = await environment.switchDesktop(number, nil)
                 }
                 guard !Task.isCancelled else { return }
                 switch result {

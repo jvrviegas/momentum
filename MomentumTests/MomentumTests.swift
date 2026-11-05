@@ -237,7 +237,32 @@ struct SpaceMoverTests {
     }
 
     @Test func unavailableShortcutReportsFailureWithoutPostingEvents() async {
-        #expect(await SpaceMover.switchTo(desktop: 10) == .shortcutUnavailable)
+        #expect(await SpaceMover.switchTo(desktop: 10, pressed: nil) == .shortcutUnavailable)
+    }
+
+    @Test func recognizesAHotkeyThatIsTheMacOSShortcut() {
+        let desktop1 = SpaceMover.desktopShortcut(1, symbolicHotKeys: symbolicHotKeys)! // ⌥1
+        #expect(SpaceMover.isShortcut(KeyCombo(key: "1", modifiers: [.alt]), desktop1))
+        #expect(!SpaceMover.isShortcut(KeyCombo(key: "1", modifiers: [.cmd]), desktop1))
+        #expect(!SpaceMover.isShortcut(KeyCombo(key: "1", modifiers: [.alt, .shift]), desktop1))
+        #expect(!SpaceMover.isShortcut(KeyCombo(key: "2", modifiers: [.alt]), desktop1))
+        // Extra flags macOS stores (here the function-key bit) don't count as modifiers.
+        let withFn: SpaceMover.Shortcut = (keyCode: desktop1.keyCode, flags: [.maskAlternate, .maskSecondaryFn])
+        #expect(SpaceMover.isShortcut(KeyCombo(key: "1", modifiers: [.alt]), withFn))
+    }
+
+    @Test func pressThatAlreadyReachedMacOSIsOnlySentOnRetries() async {
+        var spaces: Set<SpaceID> = [1]
+        var sent = 0
+        // macOS switches on the real key press, so nothing is posted.
+        let switched = await SpaceMover.switchTo(2, alreadySent: true, send: { sent += 1 },
+                                                currentSpaces: { spaces }, wait: { spaces = [2] })
+        #expect(switched == .completed && sent == 0)
+        // macOS ignored the press: the retries still post the shortcut.
+        sent = 0
+        let ignored = await SpaceMover.switchTo(2, alreadySent: true, send: { sent += 1 },
+                                               currentSpaces: { [1] }, wait: {})
+        #expect(ignored == .timedOut && sent == 2)
     }
 
     @Test func recoveryIsUnavailableWithoutAFailedSwitch() async {

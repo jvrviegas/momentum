@@ -53,7 +53,8 @@ struct TilingEnvironment {
     var isOrderedIn: (WindowID) -> Bool = { _ in true }
     var serverFrame: (WindowID) -> CGRect?
     var moveToSpace: (WindowID, SpaceID) async throws -> Void
-    var switchDesktop: (Int) async -> SpaceMover.SwitchResult
+    /// Switches to Desktop N; the pressed hotkey, if any, tells whether macOS already has the key press.
+    var switchDesktop: (Int, KeyCombo?) async -> SpaceMover.SwitchResult
     var restartDock: () async -> Bool
     var mousePressed: () -> Bool
     var cursor: () -> CGPoint?
@@ -87,7 +88,7 @@ struct TilingEnvironment {
              isOrderedIn: { Spaces.isOrderedIn($0) },
              serverFrame: { AXWindow.serverFrame(for: $0) },
              moveToSpace: { try await SpaceMover.move(windowID: $0, toSpace: $1) },
-             switchDesktop: { await SpaceMover.switchTo(desktop: $0) },
+             switchDesktop: { await SpaceMover.switchTo(desktop: $0, pressed: $1) },
              restartDock: { await SpaceMover.restartDock() },
              mousePressed: { NSEvent.pressedMouseButtons & 1 != 0 },
              cursor: { CGEvent(source: nil)?.location },

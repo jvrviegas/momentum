@@ -58,25 +58,40 @@ enum SpaceMover {
     }
 
     /// Switches using the system shortcut. Restarting the Dock after a timeout is left to the caller:
-    /// terminating it restores minimized windows on some macOS builds.
-    static func switchTo(desktop number: Int) async -> SwitchResult {
+    /// terminating it restores minimized windows on some macOS builds. `pressed` is the hotkey that asked
+    /// for the switch, or nil when no key is being pressed.
+    static func switchTo(desktop number: Int, pressed: KeyCombo?) async -> SwitchResult {
         guard let shortcut = desktopShortcut(number) else { return .shortcutUnavailable }
         // A private event source isn't combined with the keys the user is still holding,
         // so this can fire immediately without waiting for the hotkey's modifiers to be released.
         let source = CGEventSource(stateID: .privateState)
-        return await switchTo(Spaces.desktopSpace(number), send: { post(shortcut, source: source) })
+        // When the hotkey is also the macOS shortcut, macOS has already switched on the real key press.
+        // Posting it again presses it twice, and the Dock can then keep returning to this Desktop.
+        return await switchTo(Spaces.desktopSpace(number), alreadySent: pressed.map { isShortcut($0, shortcut) } ?? false,
+                              send: { await post(shortcut, source: source) })
     }
 
-    /// Dependencies allow tests without switching real Desktops.
+    /// Whether `combo` is the same key and modifiers as `shortcut`.
+    static func isShortcut(_ combo: KeyCombo, _ shortcut: Shortcut) -> Bool {
+        let modifiers: [KeyCombo.Modifier: CGEventFlags] = [.ctrl: .maskControl, .alt: .maskAlternate,
+                                                             .shift: .maskShift, .cmd: .maskCommand]
+        let flags = modifiers.reduce(into: CGEventFlags()) { if combo.modifiers.contains($1.key) { $0.insert($1.value) } }
+        return combo.keyCode.map(CGKeyCode.init) == shortcut.keyCode
+            && shortcut.flags.intersection([.maskControl, .maskAlternate, .maskShift, .maskCommand]) == flags
+    }
+
+    /// Dependencies allow tests without switching real Desktops. `alreadySent` means the user's key press
+    /// already reached macOS, so only retries send the shortcut.
     static func switchTo(
         _ target: SpaceID?,
-        send: () -> Void,
+        alreadySent: Bool = false,
+        send: () async -> Void,
         currentSpaces: () -> Set<SpaceID> = { Spaces.currentSpaces },
         wait: () async -> Void = { try? await Task.sleep(for: .milliseconds(50)) }
     ) async -> SwitchResult {
         guard !Task.isCancelled else { return .cancelled }
         let before = currentSpaces()
-        send()
+        if !alreadySent { await send() }
         // Unknown membership cannot prove failure; don't retry or report a false timeout.
         guard let target else { return .unchecked }
         guard !before.contains(target) else { return .completed }
@@ -86,7 +101,7 @@ enum SpaceMover {
             if attempt > 0 {
                 guard !Task.isCancelled else { return .cancelled }
                 if currentSpaces() != before { return .completed }
-                send()
+                await send()
             }
             for _ in 0..<20 {
                 await wait()
@@ -134,11 +149,14 @@ enum SpaceMover {
     }
 
     /// Posts `shortcut` with explicit flags so modifiers still held from our hotkey don't leak in.
-    private static func post(_ shortcut: Shortcut, source: CGEventSource?) {
+    /// Holds the key for 30 ms like a real press: with no gap, the Dock can miss the release and keep
+    /// sending the user back to this Desktop after later switches. The release is sent even if cancelled.
+    private static func post(_ shortcut: Shortcut, source: CGEventSource?) async {
         for keyDown in [true, false] {
             let event = CGEvent(keyboardEventSource: source, virtualKey: shortcut.keyCode, keyDown: keyDown)
             event?.flags = shortcut.flags
             event?.post(tap: .cghidEventTap)
+            if keyDown { try? await Task.sleep(for: .milliseconds(30)) }
         }
     }
 }
