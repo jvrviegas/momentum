@@ -2,6 +2,21 @@
 
 Notable changes to Momentum are documented here. Versions follow Semantic Versioning; `0.x` releases are early-stage and may change before stabilization.
 
+## [0.7.4] - 2026-11-05
+
+Early-stage prerelease with a development-signed app ZIP for local testing. It is not Developer ID-signed or notarized; automatic-update delivery is not validated.
+
+### Fixed
+
+- Clicking an app in the Dock whose window is on another Desktop no longer switches there and straight back. This happened when the macOS Switch to Desktop shortcuts used the same keys as Momentum's Switch to Desktop bindings, such as ⌘1–8 for both: each press switched Desktops twice, once in macOS and once from Momentum, and the Dock could then keep returning to that Desktop after later switches until the next keyboard switch. Momentum now lets macOS handle such a press and sends the shortcut itself only if macOS ignores it, so the Dock restart after an ignored switch still works. When the keys differ, Momentum's own press now lasts 30 ms, like a real one.
+
+### Compatibility
+
+- Validation includes 238 automated tests, among them a binding that matches the macOS shortcut and a press that is sent again only when macOS ignores it. On the owner's Mac, no Dock click bounced in about 1 hour 40 minutes of use (116 keyboard switches, 13 Dock clicks), where 5 bounce episodes happened in the 80 minutes before, and ⌘N switches started within a few milliseconds of the key press. It has not yet been run end to end on a built ZIP.
+- Momentum checks the macOS shortcut at each press, so changing it in System Settings takes effect without restarting Momentum.
+- Existing native Desktop API, SIP, and multi-display validation limitations remain unchanged.
+- The downloadable ZIP is a development build for testing, not a notarized installer or a signed Sparkle update.
+
 ## [0.7.3] - 2026-11-03
 
 Early-stage prerelease with a development-signed app ZIP for local testing. It is not Developer ID-signed or notarized; automatic-update delivery is not validated.
