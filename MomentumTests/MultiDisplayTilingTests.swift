@@ -60,6 +60,7 @@ final class TilingFixture {
     var onWait: (() -> Void)?
     var switchResults: [SpaceMover.SwitchResult] = []
     var switches = 0
+    var switchPresses: [KeyCombo?] = []
     var dockRestarts = 0
     var restartsDock = true
     var onDockRestart: (() -> Void)?
@@ -105,8 +106,9 @@ final class TilingFixture {
                   self.windows.first { $0.id == id }?.space = space
                   self.onMove?()
               },
-              switchDesktop: { _ in
+              switchDesktop: { _, pressed in
                   self.switches += 1
+                  self.switchPresses.append(pressed)
                   return self.switchResults.isEmpty ? .completed : self.switchResults.removeFirst()
               },
               restartDock: { self.dockRestarts += 1; self.onDockRestart?(); return self.restartsDock },
@@ -358,6 +360,9 @@ struct MultiDisplayTilingTests {
         }
         manager.perform(.switchToDesktop(2)); await manager.desktopSwitchTask?.value
         #expect(f.dockRestarts == 1 && f.switches == 2)
+        // The first switch knows the pressed hotkey; after the restart the press is over, so none is passed.
+        let pressed = f.config.store.config.bindings[.switchToDesktop(2)] ?? nil
+        #expect(pressed != nil && f.switchPresses == [pressed, nil])
         #expect(!manager.isRecoveringDock)
         #expect(manager.lastDesktopSwitchError == nil)
         #expect(!manager.canRecoverDesktopSwitching)
