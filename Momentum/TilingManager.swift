@@ -51,6 +51,9 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
     /// The frame Momentum last asked each window to take. A size check that no longer matches it is out of date,
     /// and a window still at its origin belongs to that frame's display (`placement`).
     @ObservationIgnored private var requested: [WindowID: CGRect] = [:]
+    /// How many frames Momentum has written to each window. A size check that sees another write since it was
+    /// queued may have read the window while it was moving (MD-22).
+    @ObservationIgnored private var writeCounts: [WindowID: Int] = [:]
     /// Windows each layout set aside because they don't fit. Momentum moves them to the center once.
     @ObservationIgnored private var setAside: [LayoutKey: Set<WindowID>] = [:]
     @ObservationIgnored private(set) var sizeCheckTask: Task<Void, Never>?
@@ -155,6 +158,7 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
         floating = floating.filter { memberships[$0] != .closed }
         minimumSizes = minimumSizes.filter { memberships[$0.key] != .closed }
         requested = requested.filter { memberships[$0.key] != .closed }
+        writeCounts = writeCounts.filter { memberships[$0.key] != .closed }
 
         var visible: [LayoutKey: DisplayLayoutState.VisibleLayout] = [:]
         var ids: [LayoutKey: [WindowID]] = [:]
@@ -268,7 +272,7 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
         var written: [WindowID: CGRect] = [:]
         for (id, frame) in targets {
             guard let window = windows[id], let current = window.frame, current != frame else { continue }
-            _ = window.writeFrame(frame, current, current.size != frame.size, true)
+            _ = write(window, frame, from: current, forceResize: current.size != frame.size, repairClamping: true)
             written[id] = frame
         }
         checkSizes(written)
@@ -287,8 +291,14 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
             guard let window = windows[id], let current = window.frame else { continue }
             let frame = Self.centered(current.size, in: bounds)
             requested[id] = frame
-            if frame != current { _ = window.writeFrame(frame, current, false, true) }
+            if frame != current { _ = write(window, frame, from: current, forceResize: false, repairClamping: true) }
         }
+    }
+
+    private func write(_ window: TilingEnvironment.Window, _ frame: CGRect, from previous: CGRect?,
+                       forceResize: Bool, repairClamping: Bool) -> Bool {
+        writeCounts[window.id, default: 0] += 1
+        return window.writeFrame(frame, previous, forceResize, repairClamping)
     }
 
     /// Where Momentum put the window. An app that kept it larger than asked doesn't move it to another display.
@@ -316,9 +326,10 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
         var checks: [Task<Void, Never>] = []
         for (id, frame) in frames {
             guard let window = windows[id] else { continue }
+            let writes = writeCounts[id]
             checks.append(Task { [weak self] in
                 let size = await window.readSettledFrame()?.size
-                guard let self, learnMinimumSize(of: id, requested: frame, kept: size) else { return }
+                guard let self, learnMinimumSize(of: id, requested: frame, kept: size, writes: writes) else { return }
                 refresh()
             })
         }
@@ -331,9 +342,10 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
         }
     }
 
-    private func learnMinimumSize(of id: WindowID, requested frame: CGRect, kept size: CGSize?) -> Bool {
-        // A newer layout or the user's drag makes the answer out of date.
-        guard let size, requested[id] == frame, !environment.mousePressed() else { return false }
+    private func learnMinimumSize(of id: WindowID, requested frame: CGRect, kept size: CGSize?, writes: Int?) -> Bool {
+        // A newer layout, the user's drag, or a write since the check was queued (a layout that moves the window
+        // back toward the same frame) makes the answer out of date. The window's next check measures it again.
+        guard let size, requested[id] == frame, writeCounts[id] == writes, !environment.mousePressed() else { return false }
         if abs(size.width - frame.width) > 2 || abs(size.height - frame.height) > 2 {
             let app = windows[id]?.bundleID ?? "?"
             tilingSignposter.emitEvent("size", """
@@ -392,7 +404,8 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
             guard let window = windows[id] else { continue }
             let finalResize = resizing.contains(id) && !state.model.isAnimating(id)
             let write = tilingSignposter.beginInterval("write", "\(window.bundleID ?? "?", privacy: .public)")
-            let succeeded = window.writeFrame(frame, state.frames[id], finalResize, finalResize)
+            let succeeded = self.write(window, frame, from: state.frames[id], forceResize: finalResize,
+                                       repairClamping: finalResize)
             tilingSignposter.endInterval("write", write)
             state.frames[id] = succeeded ? frame : nil
         }
@@ -624,7 +637,8 @@ let tilingSignposter = OSSignposter(subsystem: "com.joaoviegas.Momentum", catego
             moveSpace: { try await self.environment.moveToSpace(window.id, $0) },
             writeFrame: { target in
                 let previous = window.frame
-                return window.writeFrame(target, previous, previous?.size != target.size, true)
+                return self.write(window, target, from: previous, forceResize: previous?.size != target.size,
+                                  repairClamping: true)
             }, wait: environment.wait)
         startMove {
             try await DisplayMover.move(to: destination, frame: target, client: client)
