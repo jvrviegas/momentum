@@ -233,5 +233,48 @@ struct MinimumSizeTilingTests {
         #expect(wide.frame == CGRect(x: 1192, y: 28, width: 600, height: 564))
         #expect(f.windows[2].frame == CGRect(x: 1008, y: 28, width: 176, height: 564))
     }
+
+    /// After a taller display was unplugged, Chrome was learned as needing more than the whole tiling area
+    /// and floated, because its size was read while Momentum was moving it again.
+    @Test func sizeReadWhileMomentumMovesTheWindowAgainIsNotAMinimumSize() async {
+        let f = TilingFixture(); defer { f.cleanup() }
+        f.config.store.config.animationsEnabled = true
+        f.provideLinks = true
+        // Tiled on a taller display that went away: both are taller than display 1's 764 pt tiling area.
+        let left = FakeTilingWindow(1, CGRect(x: 0, y: 20, width: 500, height: 1000), space: 10)
+        let right = FakeTilingWindow(2, CGRect(x: 500, y: 20, width: 490, height: 1000), space: 10)
+        f.windows = [left, right]
+        // Like the native observer, windows report their frames as of the last reload.
+        var lastReload: [WindowID: CGRect] = [:]
+        var environment = f.environment
+        environment.windows = {
+            f.windows.map { fake in
+                let live = fake.handle
+                return .init(id: live.id, bundleID: live.bundleID, readStandard: live.readStandard,
+                             readFrame: { lastReload[fake.id] ?? fake.frame }, readCurrentFrame: live.readCurrentFrame,
+                             readSettledFrame: live.readSettledFrame, writeFrame: live.writeFrame, focus: live.focus)
+            }
+        }
+        let manager = TilingManager(configStore: f.config.store, environment: environment, initiallyTrusted: true)
+        manager.configurationDidChange()
+        f.time = 0.1
+        _ = f.ticks[1]?()
+        // A reload reads the windows halfway through the animation.
+        for window in f.windows { lastReload[window.id] = window.frame }
+        // The animation ends and queues its size checks; the reload's layout lands first and moves the windows
+        // back to where it read them, before the checks read their sizes.
+        f.time = WindowAnimation.duration
+        _ = f.ticks[1]?()
+        manager.configurationDidChange()
+        f.time += 0.01
+        _ = f.ticks[1]?()
+        await settle(manager)
+        f.time += WindowAnimation.duration
+        _ = f.ticks[1]?()
+        await settle(manager)
+        #expect(manager.noRoomMessage == nil)
+        #expect(left.frame == CGRect(x: 8, y: 28, width: 488, height: 764))
+        #expect(right.frame == CGRect(x: 504, y: 28, width: 488, height: 764))
+    }
 }
 
