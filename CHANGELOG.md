@@ -8,7 +8,7 @@ Early-stage prerelease with a development-signed app ZIP for local testing. It i
 
 ### Fixed
 
-- Unplugging a monitor no longer leaves one of two side-by-side windows floating while the other fills the Desktop. As the windows shrank to fit the smaller screen, Momentum could read a window's size while it was still moving it, and took that size as the window's minimum size. A window learned as taller than the whole screen this way, like Chrome after an unplug, floated until Retile. Momentum now ignores a size read after it has started moving the window again, and measures the window when that move ends.
+- Unplugging a monitor no longer leaves one of two side-by-side windows floating while the other fills the Desktop. As the windows shrank to fit the smaller screen, Momentum could read a window's size while it was still moving it, and took that size as the window's minimum size. A window learned this way as taller than the whole screen, like Chrome after an unplug, could no longer be tiled at all. Momentum now ignores a size read after it has started moving the window again, and measures the window when that move ends.
 
 ### Compatibility
 
