@@ -2,6 +2,21 @@
 
 Notable changes to Momentum are documented here. Versions follow Semantic Versioning; `0.x` releases are early-stage and may change before stabilization.
 
+## [0.7.5] - 2026-11-12
+
+Early-stage prerelease with a development-signed app ZIP for local testing. It is not Developer ID-signed or notarized; automatic-update delivery is not validated.
+
+### Fixed
+
+- Unplugging a monitor no longer leaves one of two side-by-side windows floating while the other fills the Desktop. As the windows shrank to fit the smaller screen, Momentum could read a window's size while it was still moving it, and took that size as the window's minimum size. A window learned as taller than the whole screen this way, like Chrome after an unplug, floated until Retile. Momentum now ignores a size read after it has started moving the window again, and measures the window when that move ends.
+
+### Compatibility
+
+- Validation includes 239 automated tests, among them a replay of the unplug where windows report their frames as of an earlier reload. It has not yet been run against a real monitor unplug or end to end on a built ZIP.
+- During a display change, a window can still briefly jump back and animate into its tile again.
+- Existing native Desktop API, SIP, and multi-display validation limitations remain unchanged.
+- The downloadable ZIP is a development build for testing, not a notarized installer or a signed Sparkle update.
+
 ## [0.7.4] - 2026-11-05
 
 Early-stage prerelease with a development-signed app ZIP for local testing. It is not Developer ID-signed or notarized; automatic-update delivery is not validated.
