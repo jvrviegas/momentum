@@ -2,6 +2,9 @@ import AppKit
 import ApplicationServices
 import os
 
+/// Records how apps come to be watched, so a missed launch can be traced afterwards.
+private let tilingLogger = Logger(subsystem: "com.joaoviegas.Momentum", category: "tiling")
+
 /// Watches apps and their windows, and calls `onEvent` whenever the window layout may need updating.
 final class WindowObserver {
     var onEvent: (() -> Void)?
@@ -32,6 +35,8 @@ final class WindowObserver {
     private var lateReads: Set<pid_t> = []
     /// Windows registered for their destroyed notification, as of the last `reload()`.
     private var watchedWindows: Set<WindowID> = []
+    /// Apps `retryObserving` is still registering for.
+    private var retrying: Set<pid_t> = []
     /// When the left button last went up, and the monitor that records it.
     private var leftMouseUp = -Double.infinity
     private var mouseUpMonitor: Any?
@@ -39,6 +44,9 @@ final class WindowObserver {
     /// How long after the left button goes up a move report still ends the user's drag. Apps sent it
     /// about 12 ms after release in testing; busy apps can be slower.
     private static let dragEndReport = 0.3
+    /// How long after an app launches a reload leaves it to the launch notification. An app is listed as
+    /// running before it finishes launching and before Momentum handles that notification.
+    private static let launchGrace = 10.0
 
     private static let appNotifications = [
         kAXWindowCreatedNotification,
@@ -60,9 +68,13 @@ final class WindowObserver {
 
         let center = NSWorkspace.shared.notificationCenter
         listen(center, NSWorkspace.didLaunchApplicationNotification) { [weak self] notification in
-            guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
-                  app.activationPolicy == .regular else { return }
-            self?.retryObserving(app)
+            guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
+            let regular = app.activationPolicy == .regular
+            tilingLogger.notice("""
+                \(app.bundleIdentifier ?? "?", privacy: .public) launched (pid \(app.processIdentifier)), \
+                \(regular ? "regular" : "not regular, not watched", privacy: .public)
+                """)
+            if regular { self?.retryObserving(app) }
         }
         listen(center, NSWorkspace.didTerminateApplicationNotification) { [weak self] notification in
             guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
@@ -88,10 +100,12 @@ final class WindowObserver {
         return app.windows.first { $0.window.id == id }
     }
 
-    /// Rereads every observed app's windows, each on its own queue, so a busy app never blocks the main thread.
+    /// Starts watching apps missed at launch, then rereads every observed app's windows, each on its own queue,
+    /// so a busy app never blocks the main thread.
     /// Waits at most 100 ms, which answering apps meet even mid-animation: a busy app keeps its last known
     /// windows until it answers, so it can't hold up the layout of every other app.
     func reload() async {
+        observeMissedApps()
         let pids = Array(observers.keys)
         guard !pids.isEmpty else { return }
         for pid in pids where reads[pid] == nil { reads[pid] = startRead(pid) }
@@ -185,15 +199,42 @@ final class WindowObserver {
         })
     }
 
+    /// Watches regular apps that still aren't watched `launchGrace` after they launched: Momentum missed their
+    /// launch, or they launched without a Dock icon and got one later. Listing the running apps costs about
+    /// 9 ms of the main thread.
+    private func observeMissedApps() {
+        for app in NSWorkspace.shared.runningApplications
+        where observers[app.processIdentifier] == nil && !retrying.contains(app.processIdentifier)
+            && (app.launchDate?.timeIntervalSinceNow ?? -.infinity) < -Self.launchGrace
+            && app.activationPolicy == .regular {
+            tilingLogger.notice("""
+                Watching \(app.bundleIdentifier ?? "?", privacy: .public) (pid \(app.processIdentifier)) only now: \
+                it wasn't watched since it launched
+                """)
+            if !observe(app.processIdentifier) { retryObserving(app) }
+        }
+    }
+
     /// Newly launched apps often reject AX notifications until they finish starting up, so keep trying for about 10 seconds.
     private func retryObserving(_ app: NSRunningApplication) {
+        let pid = app.processIdentifier
+        retrying.insert(pid)
         Task { [weak self] in
+            defer { self?.retrying.remove(pid) }
+            var registered = false
             for _ in 0..<20 {
                 try? await Task.sleep(for: .milliseconds(500))
                 guard let self, !app.isTerminated else { return }
-                if self.observe(app.processIdentifier) { break }
+                if self.observe(pid) { registered = true; break }
             }
-            self?.onEvent?()
+            guard let self else { return }
+            if !registered {
+                tilingLogger.notice("""
+                    Gave up registering for \(app.bundleIdentifier ?? "?", privacy: .public) (pid \(pid)): \
+                    \(self.observers[pid] == nil ? "not watched" : "watched without notifications", privacy: .public)
+                    """)
+            }
+            onEvent?()
         }
     }
 
