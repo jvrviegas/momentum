@@ -2,6 +2,25 @@
 
 Notable changes to Momentum are documented here. Versions follow Semantic Versioning; `0.x` releases are early-stage and may change before stabilization.
 
+## [0.7.6] - 2026-11-25
+
+Early-stage prerelease with a development-signed app ZIP for local testing. It is not Developer ID-signed or notarized; automatic-update delivery is not validated.
+
+### Fixed
+
+- An app that Momentum missed when it launched is now tiled. Claude desktop relaunches itself to install updates, often while the Mac sleeps, and after such a relaunch Momentum could stop tiling it until Claude or Momentum restarted. Quitting Claude didn't help while one of its installed artifact apps was open, because Claude then keeps running out of sight. At each layout update, Momentum now starts watching any app with a Dock icon that it still isn't watching 10 seconds after the app launched. This also covers apps that launch without a Dock icon and get one later.
+
+### Changed
+
+- Momentum now writes to the system log each app launch it hears about, each app it starts watching late, and each app it gives up watching. Read it with `log show --predicate 'subsystem == "com.joaoviegas.Momentum"'`.
+
+### Compatibility
+
+- Validation includes 239 automated tests and a live check with a test app that gets its Dock icon 3 seconds after launch: this build tiled it about 12 seconds after launch, where 0.7.5 never did. It has not yet been run against a real Claude relaunch during sleep or end to end on a built ZIP.
+- Each layout update now takes about 9 ms more of Momentum's main thread, to list the running apps.
+- Existing native Desktop API, SIP, and multi-display validation limitations remain unchanged.
+- The downloadable ZIP is a development build for testing, not a notarized installer or a signed Sparkle update.
+
 ## [0.7.5] - 2026-11-12
 
 Early-stage prerelease with a development-signed app ZIP for local testing. It is not Developer ID-signed or notarized; automatic-update delivery is not validated.
